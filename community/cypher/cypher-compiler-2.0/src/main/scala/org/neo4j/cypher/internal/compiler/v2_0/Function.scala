@@ -41,6 +41,7 @@ object Function {
     functions.Cos,
     functions.Cot,
     functions.Count,
+    functions.Dateformat,
     functions.Degrees,
     functions.Divide,
     functions.E,
