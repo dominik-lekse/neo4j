@@ -28,13 +28,15 @@ case object Dateformat extends Function {
   def name = "dateformat"
 
   def semanticCheck(ctx: ast.Expression.SemanticContext, invocation: ast.FunctionInvocation) : SemanticCheck =
-    checkArgs(invocation, 2) ifOkThen {
+    checkMinArgs(invocation, 2) then checkMaxArgs(invocation, 3) then when(invocation.arguments.length >= 2) {
       invocation.arguments(0).constrainType(LongType()) then
-      invocation.arguments(1).constrainType(StringType())
+        invocation.arguments(1).constrainType(StringType())
+    } then when(invocation.arguments.length == 3) {
+      invocation.arguments(2).constrainType(StringType())
     } then invocation.specifyType(StringType())
 
   def toCommand(invocation: ast.FunctionInvocation) = {
     val commands = invocation.arguments.map(_.toCommand)
-    commandexpressions.DateformatFunction(commands(0), commands(1))
+    commandexpressions.DateformatFunction(commands(0), commands(1), commands.lift(2))
   }
 }
