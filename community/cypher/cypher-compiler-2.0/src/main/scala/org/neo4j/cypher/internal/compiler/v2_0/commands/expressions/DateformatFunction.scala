@@ -27,7 +27,7 @@ import java.text.SimpleDateFormat
 
 case class DateformatFunction(timestamp: Expression, format: Expression) extends NullInNullOutExpression(timestamp) with StringHelper with NumericHelper {
   def compute(value: Any, m: ExecutionContext)(implicit state: QueryState): Any = {
-    val timestampVal = asInt(timestamp(m))
+    val timestampVal = asLong(timestamp(m))
     val formatVal = asString(format(m))
 
     val timestampDate = new Date(timestampVal)
