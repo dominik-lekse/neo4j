@@ -22,28 +22,33 @@ package org.neo4j.cypher.internal.compiler.v2_0.commands.expressions
 import org.neo4j.cypher.internal.compiler.v2_0._
 import pipes.QueryState
 import symbols._
-import java.util.Date
+import java.util.{TimeZone, Date}
 import java.text.SimpleDateFormat
 
-case class DateformatFunction(timestamp: Expression, format: Expression) extends NullInNullOutExpression(timestamp) with StringHelper with NumericHelper {
+case class DateformatFunction(timestamp: Expression, pattern: Expression, timezone: Option[Expression]) extends NullInNullOutExpression(timestamp) with StringHelper with NumericHelper {
   def compute(value: Any, m: ExecutionContext)(implicit state: QueryState): Any = {
     val timestampVal = asLong(timestamp(m))
-    val formatVal = asString(format(m))
+    val formatVal = asString(pattern(m))
 
     val timestampDate = new Date(timestampVal)
     val dateFormat = new SimpleDateFormat(formatVal)
+
+    if (timezone != None) {
+      val timezoneInstance = TimeZone.getTimeZone(asString(timezone.get(m)))
+      dateFormat.setTimeZone(timezoneInstance)
+    }
 
     dateFormat.format(timestampDate)
   }
 
   def innerExpectedType = StringType()
 
-  def arguments = Seq(timestamp, format)
+  def arguments = Seq(timestamp, pattern)
 
-  def rewrite(f: (Expression) => Expression) = f(DateformatFunction(timestamp.rewrite(f), format.rewrite(f)))
+  def rewrite(f: (Expression) => Expression) = f(DateformatFunction(timestamp.rewrite(f), pattern.rewrite(f), timezone.map(_.rewrite(f))))
 
   def calculateType(symbols: SymbolTable) = StringType()
 
   def symbolTableDependencies = timestamp.symbolTableDependencies ++
-                                format.symbolTableDependencies
+                                pattern.symbolTableDependencies
 }
