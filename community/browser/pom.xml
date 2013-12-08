@@ -78,8 +78,16 @@
                 <exec executable="npm" dir="${project.basedir}" osfamily="unix" failonerror="true">
                   <arg line="--color=false install" />
                 </exec>
+                
+                <exec executable="C:\Program Files\nodejs\npm.cmd" dir="${project.basedir}" osfamily="windows" failonerror="true">
+                  <arg line="--color=false install" />
+                </exec>
 
                 <exec executable="node_modules/.bin/grunt" dir="${project.basedir}" osfamily="unix" resultproperty="cmdresult">
+                  <arg line="--no-color build" />
+                </exec>
+                
+                <exec executable="${project.basedir}\node_modules\.bin\grunt.cmd" dir="${project.basedir}" osfamily="windows" resultproperty="cmdresult">
                   <arg line="--no-color build" />
                 </exec>
 

@@ -2,7 +2,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                       http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  
+
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
@@ -76,9 +76,10 @@
           </execution>
         </executions>
         <configuration>
+          <recompileMode>incremental</recompileMode>
           <jvmArgs>
-            <jvmArg>-Xms64m</jvmArg>
-            <jvmArg>-Xmx1024m</jvmArg>
+            <jvmArg>-Xms128m</jvmArg>
+            <jvmArg>-Xmx2048m</jvmArg>
           </jvmArgs>
         </configuration>
       </plugin>
