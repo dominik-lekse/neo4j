@@ -48,6 +48,7 @@ object Function {
     functions.EndNode,
     functions.Exp,
     functions.Floor,
+    functions.GeoDistance,
     functions.GreaterThan,
     functions.GreaterThanOrEqual,
     functions.Has,
