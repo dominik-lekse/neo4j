@@ -105,6 +105,7 @@ object Function {
     functions.Tail,
     functions.Tan,
     functions.Timestamp,
+    functions.ToDouble,
     functions.Trim,
     functions.Type,
     functions.Upper,
