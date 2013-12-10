@@ -19,10 +19,10 @@
  */
 package org.neo4j.cypher.internal.compiler.v2_0.commands.expressions
 
-import org.neo4j.cypher.internal.compiler.v2_0.symbols.{DoubleType, SymbolTable}
+import org.neo4j.cypher.internal.compiler.v2_0.symbols.{CollectionType, DoubleType, SymbolTable}
 import org.neo4j.cypher.internal.compiler.v2_0.ExecutionContext
 import org.neo4j.cypher.internal.compiler.v2_0.pipes.QueryState
-import scala.math.{sin, cos, acos, toRadians}
+import scala.math.{sin, cos, acos, tan, toRadians, log, Pi}
 
 class GeoFunctions {
 
@@ -65,4 +65,27 @@ case class GeoDistanceFunction(lat1: Expression, lng1: Expression, lat2: Express
 
     m ++ o
   }
+}
+
+case class MercatorFunction(lat: Expression, lng: Expression) extends Expression with NumericHelper {
+
+  def apply(ctx: ExecutionContext)(implicit state: QueryState): Any = {
+    val latRad = toRadians(asDouble(lat(ctx)))
+    val lngRad = toRadians(asDouble(lng(ctx)))
+
+    val cx = lngRad
+    val cy = log(tan(Pi / 4 + latRad / 2))
+
+    List(cx, cy)
+  }
+
+  def calculateType(symbols: SymbolTable) = CollectionType(DoubleType())
+
+  def arguments = Seq(lat, lng)
+
+  def rewrite(f: (Expression) => Expression) = f(MercatorFunction(lat.rewrite(f), lng.rewrite(f)))
+
+  def symbolTableDependencies = lat.symbolTableDependencies ++
+                                lng.symbolTableDependencies
+
 }

@@ -70,6 +70,7 @@ object Function {
     functions.Lower,
     functions.LTrim,
     functions.Max,
+    functions.Mercator,
     functions.Min,
     functions.Modulo,
     functions.Multiply,
