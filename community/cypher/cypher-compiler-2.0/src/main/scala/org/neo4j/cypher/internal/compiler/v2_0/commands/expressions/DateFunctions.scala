@@ -25,6 +25,10 @@ import symbols._
 import java.util.{TimeZone, Date}
 import java.text.SimpleDateFormat
 
+class DateFunctions {
+
+}
+
 case class DateformatFunction(timestamp: Expression, pattern: Expression, timezone: Option[Expression]) extends NullInNullOutExpression(timestamp) with StringHelper with NumericHelper {
   def compute(value: Any, m: ExecutionContext)(implicit state: QueryState): Any = {
     val timestampVal = asLong(timestamp(m))
@@ -43,12 +47,18 @@ case class DateformatFunction(timestamp: Expression, pattern: Expression, timezo
 
   def innerExpectedType = StringType()
 
-  def arguments = Seq(timestamp, pattern)
+  def arguments = Seq(timestamp, pattern) ++ timezone
 
   def rewrite(f: (Expression) => Expression) = f(DateformatFunction(timestamp.rewrite(f), pattern.rewrite(f), timezone.map(_.rewrite(f))))
 
   def calculateType(symbols: SymbolTable) = StringType()
 
-  def symbolTableDependencies = timestamp.symbolTableDependencies ++
-                                pattern.symbolTableDependencies
+  def symbolTableDependencies = {
+    val m = timestamp.symbolTableDependencies ++
+            pattern.symbolTableDependencies
+
+    val o = timezone.toSeq.flatMap(_.symbolTableDependencies.toSeq).toSet
+
+    m ++ o
+  }
 }
