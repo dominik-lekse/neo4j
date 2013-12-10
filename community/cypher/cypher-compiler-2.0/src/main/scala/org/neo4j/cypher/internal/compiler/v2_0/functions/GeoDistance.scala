@@ -27,17 +27,18 @@ case object GeoDistance extends Function {
   def name = "geodistance"
 
   def semanticCheck(ctx: ast.Expression.SemanticContext, invocation: ast.FunctionInvocation) : SemanticCheck =
-    checkArgs(invocation, 4) ifOkThen {
+    checkMinArgs(invocation, 4) then checkMaxArgs(invocation, 5) then when(invocation.arguments.length >= 4) {
       invocation.arguments(0).constrainType(NumberType()) then
       invocation.arguments(1).constrainType(NumberType()) then
       invocation.arguments(2).constrainType(NumberType()) then
-      invocation.arguments(3).constrainType(NumberType()) then
-      invocation.specifyType(DoubleType())
-    }
+      invocation.arguments(3).constrainType(NumberType())
+    } then when(invocation.arguments.length == 5) {
+      invocation.arguments(4).constrainType(NumberType())
+    } then invocation.specifyType(DoubleType())
 
   def toCommand(invocation: ast.FunctionInvocation) = {
     val commands = invocation.arguments.map(_.toCommand)
-    commandexpressions.GeoDistanceFunction(commands(0), commands(1), commands(2), commands(3))
+    commandexpressions.GeoDistanceFunction(commands(0), commands(1), commands(2), commands(3), commands.lift(4))
   }
 
 }

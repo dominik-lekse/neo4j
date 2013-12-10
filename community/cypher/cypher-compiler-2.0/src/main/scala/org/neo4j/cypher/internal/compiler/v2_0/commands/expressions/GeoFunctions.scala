@@ -28,7 +28,7 @@ class GeoFunctions {
 
 }
 
-case class GeoDistanceFunction(lat1: Expression, lng1: Expression, lat2: Expression, lng2: Expression) extends Expression with NumericHelper {
+case class GeoDistanceFunction(lat1: Expression, lng1: Expression, lat2: Expression, lng2: Expression, radius: Option[Expression]) extends Expression with NumericHelper {
 
   private val EARTH_RADIUS = 6378135.toDouble
 
@@ -41,20 +41,28 @@ case class GeoDistanceFunction(lat1: Expression, lng1: Expression, lat2: Express
     val lat2Rad = toRadians(asDouble(lat2(ctx)))
     val lng2Rad = toRadians(asDouble(lng2(ctx)))
 
-    // TODO implement radius as optional parameter
-    val radiusVal = EARTH_RADIUS;
+    val radiusVal = radius match {
+      case None => EARTH_RADIUS
+      case Some(r) => asDouble(r(ctx))
+    }
 
     acos(sin(lat1Rad) * sin(lat2Rad) + cos(lat1Rad) * cos(lat2Rad) * cos(lng2Rad - lng1Rad)) * radiusVal;
   }
 
   def calculateType(symbols: SymbolTable) = DoubleType()
 
-  def arguments = Seq(lat1, lng1, lat2, lng2)
+  def arguments = Seq(lat1, lng1, lat2, lng2) ++ radius
 
-  def rewrite(f: (Expression) => Expression) = f(GeoDistanceFunction(lat1.rewrite(f), lng1.rewrite(f), lat2.rewrite(f), lng2.rewrite(f)))
+  def rewrite(f: (Expression) => Expression) = f(GeoDistanceFunction(lat1.rewrite(f), lng1.rewrite(f), lat2.rewrite(f), lng2.rewrite(f), radius.map(_.rewrite(f))))
 
-  def symbolTableDependencies = lat1.symbolTableDependencies ++
-                                lng1.symbolTableDependencies ++
-                                lat2.symbolTableDependencies ++
-                                lng2.symbolTableDependencies
+  def symbolTableDependencies = {
+    val m = lat1.symbolTableDependencies ++
+            lng1.symbolTableDependencies ++
+            lat2.symbolTableDependencies ++
+            lng2.symbolTableDependencies
+
+    val o = radius.toSeq.flatMap(_.symbolTableDependencies.toSeq).toSet
+
+    m ++ o
+  }
 }
