@@ -22,7 +22,7 @@ package org.neo4j.cypher.internal.compiler.v2_0.commands.expressions
 import org.neo4j.cypher.internal.compiler.v2_0.symbols.{DoubleType, SymbolTable}
 import org.neo4j.cypher.internal.compiler.v2_0.ExecutionContext
 import org.neo4j.cypher.internal.compiler.v2_0.pipes.QueryState
-import scala.math.{sin, cos, acos}
+import scala.math.{sin, cos, acos, toRadians}
 
 class GeoFunctions {
 
@@ -34,16 +34,17 @@ case class GeoDistanceFunction(lat1: Expression, lng1: Expression, lat2: Express
 
   def apply(ctx: ExecutionContext)(implicit state: QueryState): Any = {
     // Calculation according to http://www.movable-type.co.uk/scripts/latlong.html
-    val lat1Val = asDouble(lat1(ctx))
-    val lng1Val = asDouble(lng1(ctx))
+    // Also refer to https://code.google.com/p/geojs/source/browse/trunk/src/math/earth.js
+    val lat1Rad = toRadians(asDouble(lat1(ctx)))
+    val lng1Rad = toRadians(asDouble(lng1(ctx)))
 
-    val lat2Val = asDouble(lat2(ctx))
-    val lng2Val = asDouble(lng2(ctx))
+    val lat2Rad = toRadians(asDouble(lat2(ctx)))
+    val lng2Rad = toRadians(asDouble(lng2(ctx)))
 
     // TODO implement radius as optional parameter
     val radiusVal = EARTH_RADIUS;
 
-    acos(sin(lat1Val) * sin(lat2Val) + cos(lat1Val) * cos(lat2Val) * cos(lng2Val - lng1Val)) * radiusVal;
+    acos(sin(lat1Rad) * sin(lat2Rad) + cos(lat1Rad) * cos(lat2Rad) * cos(lng2Rad - lng1Rad)) * radiusVal;
   }
 
   def calculateType(symbols: SymbolTable) = DoubleType()
