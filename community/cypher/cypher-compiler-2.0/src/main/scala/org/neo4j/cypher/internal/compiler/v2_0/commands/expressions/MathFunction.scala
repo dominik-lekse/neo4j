@@ -38,6 +38,7 @@ abstract class MathFunction(arg: Expression) extends Expression with NumericHelp
 trait NumericHelper {
   protected def asDouble(a: Any) = asNumber(a).doubleValue()
   protected def asInt(a: Any) = asNumber(a).intValue()
+  protected def asLong(a: Any) = asNumber(a).longValue()
 
   private def asNumber(a: Any): Number = a match {
     case null     => throw new CypherTypeException("Expected a numeric value for " + toString + ", but got null")
