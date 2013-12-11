@@ -20,22 +20,17 @@
 package org.neo4j.cypher.internal.compiler.v2_0.functions
 
 import org.neo4j.cypher.internal.compiler.v2_0._
+import org.neo4j.cypher.internal.compiler.v2_0.symbols.{NumberType, DateType}
 import org.neo4j.cypher.internal.compiler.v2_0.commands.{expressions => commandexpressions}
-import org.neo4j.cypher.internal.compiler.v2_0.symbols.{DateType, StringType, LongType}
 
-case object Dateformat extends Function {
-  def name = "dateformat"
+case object ToDate extends Function {
+  def name = "todate"
 
   def semanticCheck(ctx: ast.Expression.SemanticContext, invocation: ast.FunctionInvocation) : SemanticCheck =
-    checkMinArgs(invocation, 2) then checkMaxArgs(invocation, 3) then when(invocation.arguments.length >= 2) {
-      invocation.arguments(0).constrainType(DateType(), LongType()) then
-      invocation.arguments(1).constrainType(StringType())
-    } then when(invocation.arguments.length == 3) {
-      invocation.arguments(2).constrainType(StringType())
-    } then invocation.specifyType(StringType())
+    checkArgs(invocation, 1) then
+    invocation.arguments(2).constrainType(NumberType()) then
+    invocation.specifyType(DateType())
 
-  def toCommand(invocation: ast.FunctionInvocation) = {
-    val commands = invocation.arguments.map(_.toCommand)
-    commandexpressions.DateformatFunction(commands(0), commands(1), commands.lift(2))
-  }
+  def toCommand(invocation: ast.FunctionInvocation) =
+    commandexpressions.ToDateFunction(invocation.arguments(0).toCommand)
 }

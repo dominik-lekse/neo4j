@@ -31,12 +31,38 @@ class DateFunctions {
 
 }
 
-case class DateformatFunction(timestamp: Expression, pattern: Expression, timezone: Option[Expression]) extends NullInNullOutExpression(timestamp) with StringHelper with NumericHelper {
+trait DateHelper {
+  protected def asDate(a: Any): Date = a match {
+    case null    => null
+    case x: Date => x
+    case _       => throw new CypherTypeException("Expected a date value for %s, but got: %s.".format(toString, a.toString))
+  }
+}
+
+case class ToDateFunction(value: Expression) extends NullInNullOutExpression(value)  {
+  def compute(value: Any, ctx: ExecutionContext)(implicit state: QueryState): Any = {
+    value match {
+      case value: Long => new Date(value)
+    }
+  }
+
+  def rewrite(f: (Expression) => Expression) = f(ToDateFunction(value.rewrite(f)))
+
+  def arguments = Seq(value)
+
+  def calculateType(symbols: SymbolTable) = DateType()
+
+  def symbolTableDependencies = value.symbolTableDependencies
+}
+
+case class DateformatFunction(date: Expression, pattern: Expression, timezone: Option[Expression]) extends NullInNullOutExpression(date) with StringHelper with NumericHelper {
   def compute(value: Any, m: ExecutionContext)(implicit state: QueryState): Any = {
-    val timestampVal = asLong(timestamp(m))
     val formatVal = asString(pattern(m))
 
-    val timestampDate = new Date(timestampVal)
+    val dateVal = date(m) match {
+      case value: Date => value
+      case value: Long => new Date(value)
+    }
     val dateFormat = new SimpleDateFormat(formatVal)
 
     if (timezone != None) {
@@ -44,19 +70,19 @@ case class DateformatFunction(timestamp: Expression, pattern: Expression, timezo
       dateFormat.setTimeZone(timezoneInstance)
     }
 
-    dateFormat.format(timestampDate)
+    dateFormat.format(dateVal)
   }
 
   def innerExpectedType = StringType()
 
-  def arguments = Seq(timestamp, pattern) ++ timezone
+  def arguments = Seq(date, pattern) ++ timezone
 
-  def rewrite(f: (Expression) => Expression) = f(DateformatFunction(timestamp.rewrite(f), pattern.rewrite(f), timezone.map(_.rewrite(f))))
+  def rewrite(f: (Expression) => Expression) = f(DateformatFunction(date.rewrite(f), pattern.rewrite(f), timezone.map(_.rewrite(f))))
 
   def calculateType(symbols: SymbolTable) = StringType()
 
   def symbolTableDependencies = {
-    val m = timestamp.symbolTableDependencies ++
+    val m = date.symbolTableDependencies ++
             pattern.symbolTableDependencies
 
     val o = timezone.toSeq.flatMap(_.symbolTableDependencies.toSeq).toSet
