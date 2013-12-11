@@ -42,6 +42,7 @@ object Function {
     functions.Cot,
     functions.Count,
     functions.Dateformat,
+    functions.Daterange,
     functions.Degrees,
     functions.Divide,
     functions.E,
