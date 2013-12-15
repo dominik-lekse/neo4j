@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.neo4j.assembly</groupId>
     <artifactId>neo4j-standalone</artifactId>
-    <version>2.0.0-RC1</version>
+    <version>2.0.0</version>
     <relativePath>../standalone</relativePath>
   </parent>
 
@@ -13,7 +13,8 @@
 
   <groupId>org.neo4j.build</groupId>
   <artifactId>neo4j-desktop</artifactId>
-  <version>2.0.0-RC1</version>
+  <version>2.0.0</version>
+
   <name>Neo4j Desktop</name>
   <description>Easy-to-use Neo4j database in an .exe</description>
 
@@ -128,9 +129,11 @@
             <configuration>
               <target name="fix-license-line-endings">
                 <mkdir dir="${project.build.directory}/licenses" />
+                <mkdir dir="${project.build.directory}/plugins" />
                 <fixcrlf file="${project.basedir}/../../community/LICENSE.txt" destDir="${project.build.directory}/licenses" eol="dos" />
                 <fixcrlf file="src/main/distribution/text/community/LICENSES.txt" destDir="${project.build.directory}/licenses" eol="dos" />
                 <fixcrlf file="src/main/distribution/text/community/NOTICE.txt" destDir="${project.build.directory}/licenses" eol="dos" />
+                <fixcrlf file="src/main/distribution/text/plugins/README.txt" destDir="${project.build.directory}/plugins" eol="dos" />
               </target>
             </configuration>
           </execution>
@@ -206,7 +209,7 @@
                     <install4j projectfile="${project.basedir}/target/install4j/neo4j-desktop.install4j"
                                mediatypes="windows"
                                verbose="true"
-                               release="2.0.0-RC1"
+                               release="2.0.0"
                                winKeystorePassword="${install4j.win.key.store.password}"
                                destination="${project.basedir}/target/install4j" />
                   </target>

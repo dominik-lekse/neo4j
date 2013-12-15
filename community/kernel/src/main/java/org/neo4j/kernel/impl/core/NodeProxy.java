@@ -36,26 +36,24 @@ import org.neo4j.graphdb.StopEvaluator;
 import org.neo4j.graphdb.Traverser;
 import org.neo4j.graphdb.Traverser.Order;
 import org.neo4j.helpers.ThisShouldNotHappenError;
-import org.neo4j.kernel.impl.coreapi.ThreadToStatementContextBridge;
-import org.neo4j.kernel.api.ReadOnlyDatabaseKernelException;
 import org.neo4j.kernel.api.Statement;
 import org.neo4j.kernel.api.exceptions.EntityNotFoundException;
 import org.neo4j.kernel.api.exceptions.InvalidTransactionTypeKernelException;
 import org.neo4j.kernel.api.exceptions.LabelNotFoundKernelException;
 import org.neo4j.kernel.api.exceptions.PropertyKeyIdNotFoundKernelException;
 import org.neo4j.kernel.api.exceptions.PropertyNotFoundException;
+import org.neo4j.kernel.api.exceptions.ReadOnlyDatabaseKernelException;
 import org.neo4j.kernel.api.exceptions.RelationshipTypeIdNotFoundKernelException;
+import org.neo4j.kernel.api.exceptions.schema.ConstraintValidationKernelException;
 import org.neo4j.kernel.api.exceptions.schema.IllegalTokenNameException;
 import org.neo4j.kernel.api.exceptions.schema.TooManyLabelsException;
-import org.neo4j.kernel.api.operations.KeyReadOperations;
-import org.neo4j.kernel.api.operations.StatementTokenNameLookup;
+import org.neo4j.kernel.impl.api.operations.KeyReadOperations;
+import org.neo4j.kernel.api.StatementTokenNameLookup;
 import org.neo4j.kernel.api.properties.DefinedProperty;
 import org.neo4j.kernel.api.properties.Property;
-import org.neo4j.kernel.impl.api.PrimitiveIntIterator;
-import org.neo4j.kernel.impl.api.constraints.ConstraintValidationKernelException;
-import org.neo4j.kernel.impl.cleanup.CleanupService;
 import org.neo4j.kernel.impl.transaction.LockType;
 import org.neo4j.kernel.impl.traversal.OldTraverserWrapper;
+import org.neo4j.kernel.impl.util.PrimitiveIntIterator;
 
 import static java.lang.String.format;
 
@@ -70,8 +68,6 @@ public class NodeProxy implements Node
         GraphDatabaseService getGraphDatabase();
 
         NodeManager getNodeManager();
-
-        CleanupService getCleanupService();
 
         NodeImpl lookup( long nodeId, LockType lock );
     }
@@ -308,7 +304,7 @@ public class NodeProxy implements Node
         catch ( PropertyKeyIdNotFoundKernelException e )
         {
             throw new ThisShouldNotHappenError( "Jake",
-                    "Property key retrieved through kernel API should exist." );
+                    "Property key retrieved through kernel API should exist.", e );
         }
     }
 
@@ -322,16 +318,20 @@ public class NodeProxy implements Node
 
         try ( Statement statement = statementContextProvider.instance() )
         {
-            int propertyKeyId = statement.readOperations().propertyKeyGetForName( key );
-            if ( propertyKeyId == KeyReadOperations.NO_SUCH_PROPERTY_KEY )
+            try
             {
-                throw new NotFoundException( format( "No such property, '%s'.", key ) );
+                int propertyKeyId = statement.readOperations().propertyKeyGetForName( key );
+                if ( propertyKeyId == KeyReadOperations.NO_SUCH_PROPERTY_KEY )
+                {
+                    throw new NotFoundException( format( "No such property, '%s'.", key ) );
+                }
+                return statement.readOperations().nodeGetProperty( nodeId, propertyKeyId ).value();
             }
-            return statement.readOperations().nodeGetProperty( nodeId, propertyKeyId ).value();
-        }
-        catch ( EntityNotFoundException | PropertyNotFoundException e )
-        {
-            throw new NotFoundException( e );
+            catch ( EntityNotFoundException | PropertyNotFoundException e )
+            {
+                throw new NotFoundException(
+                        e.getUserMessage( new StatementTokenNameLookup( statement.readOperations() ) ), e );
+            }
         }
     }
 

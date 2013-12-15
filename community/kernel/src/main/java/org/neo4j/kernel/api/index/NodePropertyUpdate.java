@@ -22,11 +22,11 @@ package org.neo4j.kernel.api.index;
 import java.util.Arrays;
 
 import org.neo4j.graphdb.Node;
-import org.neo4j.kernel.impl.api.UpdateMode;
+import org.neo4j.kernel.impl.api.index.UpdateMode;
 
-import static org.neo4j.kernel.impl.api.UpdateMode.ADDED;
-import static org.neo4j.kernel.impl.api.UpdateMode.CHANGED;
-import static org.neo4j.kernel.impl.api.UpdateMode.REMOVED;
+import static org.neo4j.kernel.impl.api.index.UpdateMode.ADDED;
+import static org.neo4j.kernel.impl.api.index.UpdateMode.CHANGED;
+import static org.neo4j.kernel.impl.api.index.UpdateMode.REMOVED;
 
 public class NodePropertyUpdate
 {
@@ -114,7 +114,8 @@ public class NodePropertyUpdate
     @Override
     public String toString()
     {
-        StringBuilder result = new StringBuilder( getClass().getSimpleName() + "[" + nodeId + ", prop:" + propertyKeyId + " " );
+        StringBuilder result = new StringBuilder( getClass().getSimpleName() )
+                .append( "[" ).append( nodeId ).append( ", prop:" ).append( propertyKeyId ).append( " " );
         switch ( updateMode )
         {
         case ADDED: result.append( "add:" ).append( valueAfter ); break;

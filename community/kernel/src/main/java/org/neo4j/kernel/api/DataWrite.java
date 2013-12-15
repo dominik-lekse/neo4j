@@ -23,7 +23,7 @@ import org.neo4j.kernel.api.exceptions.EntityNotFoundException;
 import org.neo4j.kernel.api.exceptions.RelationshipTypeIdNotFoundKernelException;
 import org.neo4j.kernel.api.properties.DefinedProperty;
 import org.neo4j.kernel.api.properties.Property;
-import org.neo4j.kernel.impl.api.constraints.ConstraintValidationKernelException;
+import org.neo4j.kernel.api.exceptions.schema.ConstraintValidationKernelException;
 
 interface DataWrite
 {
@@ -39,9 +39,9 @@ interface DataWrite
     /**
      * Labels a node with the label corresponding to the given label id.
      * If the node already had that label nothing will happen. Label ids
-     * are retrieved from {@link org.neo4j.kernel.api.operations.KeyWriteOperations#labelGetOrCreateForName(org.neo4j.kernel.api.Statement,
+     * are retrieved from {@link org.neo4j.kernel.impl.api.operations.KeyWriteOperations#labelGetOrCreateForName(org.neo4j.kernel.api.Statement,
      * String)} or {@link
-     * org.neo4j.kernel.api.operations.KeyReadOperations#labelGetForName(org.neo4j.kernel.api.Statement, String)}.
+     * org.neo4j.kernel.impl.api.operations.KeyReadOperations#labelGetForName(org.neo4j.kernel.api.Statement, String)}.
      */
     boolean nodeAddLabel( long nodeId, int labelId )
             throws EntityNotFoundException, ConstraintValidationKernelException;
@@ -49,9 +49,9 @@ interface DataWrite
     /**
      * Removes a label with the corresponding id from a node.
      * If the node doesn't have that label nothing will happen. Label ids
-     * are retrieved from {@link org.neo4j.kernel.api.operations.KeyWriteOperations#labelGetOrCreateForName(org.neo4j.kernel.api.Statement,
+     * are retrieved from {@link org.neo4j.kernel.impl.api.operations.KeyWriteOperations#labelGetOrCreateForName(org.neo4j.kernel.api.Statement,
      * String)} or {@link
-     * org.neo4j.kernel.api.operations.KeyReadOperations#labelGetForName(org.neo4j.kernel.api.Statement, String)}.
+     * org.neo4j.kernel.impl.api.operations.KeyReadOperations#labelGetForName(org.neo4j.kernel.api.Statement, String)}.
      */
     boolean nodeRemoveLabel( long nodeId, int labelId ) throws EntityNotFoundException;
 

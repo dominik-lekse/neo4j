@@ -27,7 +27,7 @@ class State
     final ExecutionEngine engine;
     final GraphDatabaseService database;
 
-    String latestResult;
+    Result latestResult;
 
     State( ExecutionEngine engine, GraphDatabaseService database )
     {
