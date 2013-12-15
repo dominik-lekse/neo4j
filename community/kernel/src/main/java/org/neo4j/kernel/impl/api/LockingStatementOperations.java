@@ -22,7 +22,6 @@ package org.neo4j.kernel.impl.api;
 import java.util.Iterator;
 
 import org.neo4j.helpers.Function;
-import org.neo4j.kernel.api.KernelStatement;
 import org.neo4j.kernel.api.Statement;
 import org.neo4j.kernel.api.constraints.UniquenessConstraint;
 import org.neo4j.kernel.api.exceptions.EntityNotFoundException;
@@ -35,14 +34,15 @@ import org.neo4j.kernel.api.exceptions.schema.DropConstraintFailureException;
 import org.neo4j.kernel.api.exceptions.schema.DropIndexFailureException;
 import org.neo4j.kernel.api.exceptions.schema.SchemaRuleNotFoundException;
 import org.neo4j.kernel.api.index.InternalIndexState;
-import org.neo4j.kernel.api.operations.EntityWriteOperations;
-import org.neo4j.kernel.api.operations.SchemaReadOperations;
-import org.neo4j.kernel.api.operations.SchemaStateOperations;
-import org.neo4j.kernel.api.operations.SchemaWriteOperations;
+import org.neo4j.kernel.impl.api.operations.EntityWriteOperations;
+import org.neo4j.kernel.impl.api.operations.SchemaReadOperations;
+import org.neo4j.kernel.impl.api.operations.SchemaStateOperations;
+import org.neo4j.kernel.impl.api.operations.SchemaWriteOperations;
 import org.neo4j.kernel.api.properties.DefinedProperty;
 import org.neo4j.kernel.api.properties.Property;
-import org.neo4j.kernel.impl.api.constraints.ConstraintValidationKernelException;
-import org.neo4j.kernel.impl.api.index.IndexDescriptor;
+import org.neo4j.kernel.api.exceptions.schema.ConstraintValidationKernelException;
+import org.neo4j.kernel.api.index.IndexDescriptor;
+import org.neo4j.kernel.impl.nioneo.store.SchemaStorage;
 
 public class LockingStatementOperations implements
     EntityWriteOperations,
@@ -71,6 +71,19 @@ public class LockingStatementOperations implements
     public boolean nodeAddLabel( KernelStatement state, long nodeId, int labelId )
             throws EntityNotFoundException, ConstraintValidationKernelException
     {
+        // TODO (BBC, 22/11/13):
+        // In order to enforce constraints we need to check whether this change violates constraints; we therefore need
+        // the schema lock to ensure that our view of constraints is consistent.
+        //
+        // We would like this locking to be done naturally when ConstraintEnforcingEntityOperations calls
+        // SchemaReadOperations#constraintsGetForLabel, but the SchemaReadOperations object that
+        // ConstraintEnforcingEntityOperations has a reference to does not lock because of the way the cake is
+        // constructed.
+        //
+        // It would be cleaner if the schema and data cakes were separated so that the SchemaReadOperations object used
+        // by ConstraintEnforcingEntityOperations included the full cake, with locking included.
+        state.locks().acquireSchemaReadLock();
+
         state.locks().acquireNodeWriteLock( nodeId );
         return entityWriteDelegate.nodeAddLabel( state, nodeId, labelId );
     }
@@ -155,10 +168,11 @@ public class LockingStatementOperations implements
     }
 
     @Override
-    public long indexGetCommittedId( KernelStatement state, IndexDescriptor index ) throws SchemaRuleNotFoundException
+    public long indexGetCommittedId( KernelStatement state, IndexDescriptor index, SchemaStorage.IndexRuleKind kind )
+            throws SchemaRuleNotFoundException
     {
         state.locks().acquireSchemaReadLock();
-        return schemaReadDelegate.indexGetCommittedId( state, index );
+        return schemaReadDelegate.indexGetCommittedId( state, index, kind );
     }
 
     @Override
@@ -230,6 +244,19 @@ public class LockingStatementOperations implements
     public Property nodeSetProperty( KernelStatement state, long nodeId, DefinedProperty property )
             throws EntityNotFoundException, ConstraintValidationKernelException
     {
+        // TODO (BBC, 22/11/13):
+        // In order to enforce constraints we need to check whether this change violates constraints; we therefore need
+        // the schema lock to ensure that our view of constraints is consistent.
+        //
+        // We would like this locking to be done naturally when ConstraintEnforcingEntityOperations calls
+        // SchemaReadOperations#constraintsGetForLabel, but the SchemaReadOperations object that
+        // ConstraintEnforcingEntityOperations has a reference to does not lock because of the way the cake is
+        // constructed.
+        //
+        // It would be cleaner if the schema and data cakes were separated so that the SchemaReadOperations object used
+        // by ConstraintEnforcingEntityOperations included the full cake, with locking included.
+        state.locks().acquireSchemaReadLock();
+
         state.locks().acquireNodeWriteLock( nodeId );
         return entityWriteDelegate.nodeSetProperty( state, nodeId, property );
     }

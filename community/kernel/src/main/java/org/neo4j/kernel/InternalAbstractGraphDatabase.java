@@ -26,10 +26,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-
 import javax.transaction.NotSupportedException;
 import javax.transaction.SystemException;
 import javax.transaction.TransactionManager;
+
 import org.neo4j.graphdb.ConstraintViolationException;
 import org.neo4j.graphdb.DatabaseShutdownException;
 import org.neo4j.graphdb.DependencyResolver;
@@ -54,20 +54,22 @@ import org.neo4j.graphdb.traversal.BidirectionalTraversalDescription;
 import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.helpers.Clock;
 import org.neo4j.helpers.DaemonThreadFactory;
+import org.neo4j.helpers.Factory;
 import org.neo4j.helpers.FunctionFromPrimitiveLong;
 import org.neo4j.helpers.Service;
 import org.neo4j.helpers.Settings;
 import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.helpers.collection.IteratorUtil;
-import org.neo4j.kernel.api.ReadOnlyDatabaseKernelException;
 import org.neo4j.kernel.api.ReadOperations;
 import org.neo4j.kernel.api.Statement;
-import org.neo4j.kernel.api.Transactor;
 import org.neo4j.kernel.api.exceptions.EntityNotFoundException;
 import org.neo4j.kernel.api.exceptions.InvalidTransactionTypeKernelException;
+import org.neo4j.kernel.api.exceptions.ReadOnlyDatabaseKernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
+import org.neo4j.kernel.api.exceptions.schema.ConstraintValidationKernelException;
 import org.neo4j.kernel.api.exceptions.schema.SchemaKernelException;
 import org.neo4j.kernel.api.exceptions.schema.SchemaRuleNotFoundException;
+import org.neo4j.kernel.api.index.IndexDescriptor;
 import org.neo4j.kernel.api.index.InternalIndexState;
 import org.neo4j.kernel.api.labelscan.LabelScanStore;
 import org.neo4j.kernel.configuration.Config;
@@ -77,14 +79,10 @@ import org.neo4j.kernel.extension.KernelExtensionFactory;
 import org.neo4j.kernel.extension.KernelExtensions;
 import org.neo4j.kernel.extension.UnsatisfiedDependencyStrategies;
 import org.neo4j.kernel.guard.Guard;
-import org.neo4j.kernel.impl.api.AbstractPrimitiveLongIterator;
 import org.neo4j.kernel.impl.api.KernelSchemaStateStore;
 import org.neo4j.kernel.impl.api.NonTransactionalTokenNameLookup;
-import org.neo4j.kernel.impl.api.PrimitiveLongIterator;
 import org.neo4j.kernel.impl.api.SchemaWriteGuard;
 import org.neo4j.kernel.impl.api.UpdateableSchemaState;
-import org.neo4j.kernel.impl.api.constraints.ConstraintValidationKernelException;
-import org.neo4j.kernel.impl.api.index.IndexDescriptor;
 import org.neo4j.kernel.impl.api.index.IndexingService;
 import org.neo4j.kernel.impl.api.index.RemoveOrphanConstraintIndexesOnStartup;
 import org.neo4j.kernel.impl.cache.BridgingCacheAccess;
@@ -110,13 +108,14 @@ import org.neo4j.kernel.impl.core.ReadOnlyNodeManager;
 import org.neo4j.kernel.impl.core.RelationshipImpl;
 import org.neo4j.kernel.impl.core.RelationshipProxy;
 import org.neo4j.kernel.impl.core.RelationshipTypeTokenHolder;
+import org.neo4j.kernel.impl.core.ThreadToStatementContextBridge;
 import org.neo4j.kernel.impl.core.TokenCreator;
 import org.neo4j.kernel.impl.core.TransactionEventsSyncHook;
+import org.neo4j.kernel.impl.core.Transactor;
 import org.neo4j.kernel.impl.core.TxEventSyncHookFactory;
 import org.neo4j.kernel.impl.coreapi.IndexManagerImpl;
 import org.neo4j.kernel.impl.coreapi.NodeAutoIndexerImpl;
 import org.neo4j.kernel.impl.coreapi.RelationshipAutoIndexerImpl;
-import org.neo4j.kernel.impl.coreapi.ThreadToStatementContextBridge;
 import org.neo4j.kernel.impl.coreapi.schema.SchemaImpl;
 import org.neo4j.kernel.impl.index.IndexStore;
 import org.neo4j.kernel.impl.nioneo.store.DefaultWindowPoolFactory;
@@ -133,9 +132,9 @@ import org.neo4j.kernel.impl.transaction.LockManagerImpl;
 import org.neo4j.kernel.impl.transaction.LockType;
 import org.neo4j.kernel.impl.transaction.RagManager;
 import org.neo4j.kernel.impl.transaction.ReadOnlyTxManager;
+import org.neo4j.kernel.impl.transaction.RemoteTxHook;
 import org.neo4j.kernel.impl.transaction.TransactionManagerProvider;
 import org.neo4j.kernel.impl.transaction.TransactionStateFactory;
-import org.neo4j.kernel.impl.transaction.RemoteTxHook;
 import org.neo4j.kernel.impl.transaction.TxManager;
 import org.neo4j.kernel.impl.transaction.XaDataSourceManager;
 import org.neo4j.kernel.impl.transaction.xaframework.DefaultLogBufferFactory;
@@ -148,8 +147,11 @@ import org.neo4j.kernel.impl.transaction.xaframework.TxIdGenerator;
 import org.neo4j.kernel.impl.transaction.xaframework.XaFactory;
 import org.neo4j.kernel.impl.traversal.BidirectionalTraversalDescriptionImpl;
 import org.neo4j.kernel.impl.traversal.MonoDirectionalTraversalDescription;
+import org.neo4j.kernel.impl.util.AbstractPrimitiveLongIterator;
 import org.neo4j.kernel.impl.util.JobScheduler;
+import org.neo4j.kernel.impl.util.Monitors;
 import org.neo4j.kernel.impl.util.Neo4jJobScheduler;
+import org.neo4j.kernel.impl.util.PrimitiveLongIterator;
 import org.neo4j.kernel.impl.util.StringLogger;
 import org.neo4j.kernel.info.DiagnosticsManager;
 import org.neo4j.kernel.info.JvmChecker;
@@ -165,10 +167,14 @@ import org.neo4j.kernel.logging.Logging;
 import org.neo4j.tooling.GlobalGraphOperations;
 
 import static java.lang.String.format;
+
 import static org.neo4j.helpers.Settings.setting;
 import static org.neo4j.helpers.collection.Iterables.map;
-import static org.neo4j.kernel.api.operations.KeyReadOperations.NO_SUCH_LABEL;
-import static org.neo4j.kernel.api.operations.KeyReadOperations.NO_SUCH_PROPERTY_KEY;
+import static org.neo4j.kernel.impl.api.operations.KeyReadOperations.NO_SUCH_LABEL;
+import static org.neo4j.kernel.impl.api.operations.KeyReadOperations.NO_SUCH_PROPERTY_KEY;
+import static org.neo4j.kernel.impl.transaction.XidImpl.DEFAULT_SEED;
+import static org.neo4j.kernel.impl.transaction.XidImpl.getNewGlobalId;
+import static org.neo4j.kernel.impl.transaction.xaframework.XaLogicalLog.MASTER_ID_REPRESENTING_NO_MASTER;
 import static org.neo4j.kernel.logging.LogbackWeakDependency.DEFAULT_TO_CLASSIC;
 
 /**
@@ -242,12 +248,15 @@ public abstract class InternalAbstractGraphDatabase
     protected RelationshipAutoIndexerImpl relAutoIndexer;
     protected KernelData extensions;
     protected Caches caches;
+
     protected TransactionStateFactory stateFactory;
     protected ThreadToStatementContextBridge statementContextProvider;
     protected BridgingCacheAccess cacheBridge;
     protected JobScheduler jobScheduler;
     protected UpdateableSchemaState updateableSchemaState;
     protected CleanupService cleanupService;
+
+    protected Monitors monitors;
 
     protected final LifeSupport life = new LifeSupport();
     private final Map<String, CacheProvider> cacheProviders;
@@ -393,6 +402,12 @@ public abstract class InternalAbstractGraphDatabase
 
         // Create logger
         this.logging = createLogging();
+        
+        // Component monitoring
+        this.monitors = new Monitors( logging.getMessagesLog( Monitors.class ) );
+
+        // Component monitoring
+        this.monitors = new Monitors( logging.getMessagesLog( Monitors.class ) );
 
         // Apply autoconfiguration for memory settings
         AutoConfigurator autoConfigurator = new AutoConfigurator( fileSystem,
@@ -443,7 +458,7 @@ public abstract class InternalAbstractGraphDatabase
         jobScheduler =
             life.add( new Neo4jJobScheduler( this.toString(), logging.getMessagesLog( Neo4jJobScheduler.class ) ));
 
-        kernelEventHandlers = new KernelEventHandlers();
+        kernelEventHandlers = new KernelEventHandlers(logging.getMessagesLog( KernelEventHandlers.class ));
 
         caches = createCaches();
         diagnosticsManager = life.add( new DiagnosticsManager( logging.getMessagesLog( DiagnosticsManager.class ) ) );
@@ -457,12 +472,15 @@ public abstract class InternalAbstractGraphDatabase
         guard = config.get( Configuration.execution_guard_enabled ) ? new Guard( msgLog ) : null;
 
         stateFactory = createTransactionStateFactory();
+        
+        Factory<byte[]> xidGlobalIdFactory = createXidGlobalIdFactory();
 
         updateableSchemaState = new KernelSchemaStateStore( newSchemaStateMap() );
 
         if ( readOnly )
         {
-            txManager = new ReadOnlyTxManager( xaDataSourceManager, logging.getMessagesLog( ReadOnlyTxManager.class ) );
+            txManager = new ReadOnlyTxManager( xaDataSourceManager, xidGlobalIdFactory,
+                    logging.getMessagesLog( ReadOnlyTxManager.class ) );
         }
         else
         {
@@ -470,7 +488,8 @@ public abstract class InternalAbstractGraphDatabase
             if ( GraphDatabaseSettings.tx_manager_impl.getDefaultValue().equals( serviceName ) )
             {
                 txManager = new TxManager( this.storeDir, xaDataSourceManager, kernelPanicEventGenerator,
-                        logging.getMessagesLog( TxManager.class ), fileSystem, stateFactory );
+                        logging.getMessagesLog( TxManager.class ), fileSystem, stateFactory,
+                        xidGlobalIdFactory );
             }
             else
             {
@@ -568,6 +587,18 @@ public abstract class InternalAbstractGraphDatabase
 
         // TODO This is probably too coarse-grained and we should have some strategy per user of config instead
         life.add( new ConfigurationChangedRestarter() );
+    }
+
+    protected Factory<byte[]> createXidGlobalIdFactory()
+    {
+        return new Factory<byte[]>()
+        {
+            @Override
+            public byte[] newInstance()
+            {
+                return getNewGlobalId( DEFAULT_SEED, MASTER_ID_REPRESENTING_NO_MASTER );
+            }
+        };
     }
 
     protected AvailabilityGuard createAvailabilityGuard()
@@ -759,6 +790,7 @@ public abstract class InternalAbstractGraphDatabase
         catch ( LifecycleException throwable )
         {
             msgLog.warn( "Shutdown failed", throwable );
+            throw throwable;
         }
     }
 
@@ -785,7 +817,7 @@ public abstract class InternalAbstractGraphDatabase
 
     protected Caches createCaches()
     {
-        return new DefaultCaches( msgLog );
+        return new DefaultCaches( msgLog, monitors );
     }
 
     protected RelationshipProxy.RelationshipLookups createRelationshipLookups()
@@ -843,11 +875,6 @@ public abstract class InternalAbstractGraphDatabase
             {
                 // TODO This should be wrapped as well
                 return InternalAbstractGraphDatabase.this;
-            }
-
-            @Override
-            public CleanupService getCleanupService() {
-                return cleanupService;
             }
 
             @Override
@@ -926,8 +953,8 @@ public abstract class InternalAbstractGraphDatabase
     {
         if ( !availabilityGuard.isAvailable( accessTimeout ) )
         {
-            throw new TransactionFailureException( "Database is currently not available " + availabilityGuard
-                    .hashCode() );
+            throw new TransactionFailureException( "Database is currently not available. "
+                    + availabilityGuard.describeWhoIsBlocking() );
         }
 
         try
@@ -1371,6 +1398,14 @@ public abstract class InternalAbstractGraphDatabase
             else if ( IdGeneratorFactory.class.isAssignableFrom( type ) )
             {
                 return type.cast( idGeneratorFactory );
+            }
+            else if ( Monitors.class.isAssignableFrom( type ) )
+            {
+                return type.cast( monitors );
+            }
+            else if ( RemoteTxHook.class.isAssignableFrom( type ) )
+            {
+                return type.cast( txHook );
             }
             else if ( DependencyResolver.class.equals( type ) )
             {

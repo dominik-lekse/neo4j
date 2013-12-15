@@ -25,7 +25,7 @@ import org.junit.Test
 import org.neo4j.cypher.internal.helpers.GraphIcing
 
 class SchemaIndexTest extends DocumentingTestBase with StatisticsChecker with GraphIcing {
-  def graphDescription = List(
+  override def graphDescription = List(
     "root X A",
     "root X B",
     "root X C",
@@ -39,7 +39,7 @@ class SchemaIndexTest extends DocumentingTestBase with StatisticsChecker with Gr
       title = "Create index on a label",
       text = "To create an index on a property for all nodes that have a label, use +CREATE+ +INDEX+ +ON+. " +
         "Note that the index is not immediately available, but will be created in the background. " +
-        "See the <<graphdb-neo4j-schema-indexes, indexes>> section for details.",
+        "See <<graphdb-neo4j-schema-indexes>> for details.",
       queryText = "create index on :Person(name)",
       returns = "",
       assertions = (p) => assertIndexesOnLabels("Person", List(List("name")))
@@ -50,7 +50,7 @@ class SchemaIndexTest extends DocumentingTestBase with StatisticsChecker with Gr
     prepareAndTestQuery(
       title = "Drop index on a label",
       text = "To drop an index on all nodes that have a label, use the +DROP+ +INDEX+ clause.",
-      prepare = executeQuery("create index on :Person(name)"),
+      prepare = executePreparationQueries(List("create index on :Person(name)")),
       queryText = "drop index on :Person(name)",
       returns = "",
       assertions = (p) => assertIndexesOnLabels("Person", List())
@@ -63,7 +63,7 @@ class SchemaIndexTest extends DocumentingTestBase with StatisticsChecker with Gr
       text = "There is usually no need to specify which indexes to use in a query, Cypher will figure that out by itself. " +
         "For example the query below will use the `Person(name)` index, if it exists. " +
         "If you for some reason want to hint to specific indexes, see <<query-using>>.",
-      queryText = "match (n:Person) where n.name = 'Andres' return n",
+      queryText = "match (n:Person {name: 'Andres'}) return n",
       returns = "",
       assertions = (p) => assertEquals(0, p.size)
     )

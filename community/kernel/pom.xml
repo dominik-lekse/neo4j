@@ -23,14 +23,15 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>2.0.0-RC1</version>
+    <version>2.0.0</version>
     <relativePath>../..</relativePath>
   </parent>
 
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.neo4j</groupId>
   <artifactId>neo4j-kernel</artifactId>
-  <version>2.0.0-RC1</version>
+  <version>2.0.0</version>
+
   <name>Neo4j - Graph Database Kernel</name>
   <description>
  Neo4j kernel is a lightweight, embedded Java database designed to
@@ -340,12 +341,6 @@ the relevant Commercial Agreement.
     	<artifactId>logback-classic</artifactId>
       <optional>true</optional>
     </dependency>
-<!--     <dependency>
-    	<groupId>janino</groupId>
-    	<artifactId>janino</artifactId>
-    	<version>2.5.10</version>
-      <optional>true</optional>
-    </dependency> -->
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>

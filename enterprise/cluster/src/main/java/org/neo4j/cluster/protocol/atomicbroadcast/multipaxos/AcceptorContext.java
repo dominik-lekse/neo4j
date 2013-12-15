@@ -19,45 +19,19 @@
  */
 package org.neo4j.cluster.protocol.atomicbroadcast.multipaxos;
 
-import org.neo4j.kernel.impl.util.StringLogger;
-import org.neo4j.kernel.logging.Logging;
+import org.neo4j.cluster.protocol.LoggingContext;
 
 /**
  * Context used by AcceptorState
  */
-public class AcceptorContext
+public interface AcceptorContext
+    extends LoggingContext
 {
-    private Logging logging;
-    private final AcceptorInstanceStore instanceStore;
+    AcceptorInstance getAcceptorInstance( InstanceId instanceId );
 
-    public AcceptorContext( Logging logging, AcceptorInstanceStore instanceStore )
-    {
-        this.logging = logging;
-        this.instanceStore = instanceStore;
-    }
+    void promise( AcceptorInstance instance, long ballot );
 
-    public AcceptorInstance getAcceptorInstance( InstanceId instanceId )
-    {
-        return instanceStore.getAcceptorInstance( instanceId );
-    }
+    void accept( AcceptorInstance instance, Object value );
 
-    public void promise( AcceptorInstance instance, long ballot )
-    {
-        instanceStore.promise( instance, ballot );
-    }
-
-    public void accept( AcceptorInstance instance, Object value )
-    {
-        instanceStore.accept( instance, value );
-    }
-
-    public StringLogger getLogger( Class clazz )
-    {
-        return logging.getMessagesLog( clazz );
-    }
-
-    public void leave()
-    {
-        instanceStore.clear();
-    }
+    void leave();
 }

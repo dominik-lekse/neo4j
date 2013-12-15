@@ -19,12 +19,6 @@
  */
 package org.neo4j.cluster.protocol.cluster;
 
-import static org.neo4j.cluster.com.message.Message.internal;
-import static org.neo4j.cluster.com.message.Message.respond;
-import static org.neo4j.cluster.com.message.Message.timeout;
-import static org.neo4j.cluster.com.message.Message.to;
-import static org.neo4j.helpers.collection.Iterables.count;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,6 +33,12 @@ import org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.AtomicBroadcastMess
 import org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.ProposerMessage;
 import org.neo4j.cluster.statemachine.State;
 import org.neo4j.helpers.collection.Iterables;
+
+import static org.neo4j.cluster.com.message.Message.internal;
+import static org.neo4j.cluster.com.message.Message.respond;
+import static org.neo4j.cluster.com.message.Message.timeout;
+import static org.neo4j.cluster.com.message.Message.to;
+import static org.neo4j.helpers.collection.Iterables.count;
 
 /**
  * State machine for the Cluster API
@@ -93,7 +93,7 @@ public enum ClusterState
                                         potentialClusterInstanceUri,
                                         new ClusterMessage.ConfigurationRequestState( context.getMyId(), context.boundAt() ) ) );
                             }
-                            context.timeouts.setTimeout( "discovery",
+                            context.setTimeout( "discovery",
                                     timeout( ClusterMessage.configurationTimeout, message,
                                             new ClusterMessage.ConfigurationTimeoutState(
                                                     /*
@@ -106,7 +106,8 @@ public enum ClusterState
                                                      * If, on the other hand, we have some configured, then we won't
                                                      * startup anyway until half are available. So this delay doesn't
                                                      * enter into it anyway.
-                                                     * In summary, this offers no upside if there are configured instances
+                                                     * In summary, this offers no upside if there are configured
+                                                     * instances
                                                      * and causes unnecessary delay if we are supposed to go ahead and
                                                      * create the cluster.
                                                      */
@@ -129,7 +130,7 @@ public enum ClusterState
                     {
                         case configurationResponse:
                         {
-                            context.timeouts.cancelTimeout( "discovery" );
+                            context.cancelTimeout( "discovery" );
 
                             ClusterMessage.ConfigurationResponseState state = message.getPayload();
 
@@ -142,24 +143,21 @@ public enum ClusterState
                             }
 
                             HashMap<InstanceId, URI> memberList = new HashMap<InstanceId, URI>( state.getMembers() );
-                            context.learnerContext.setLastDeliveredInstanceId( state.getLatestReceivedInstanceId().getId() );
-                            context.learnerContext.learnedInstanceId( state.getLatestReceivedInstanceId().getId() );
-                            context.proposerContext.nextInstanceId = state.getLatestReceivedInstanceId().getId()
-                                    + 1;
+                            context.discoveredLastReceivedInstanceId( state.getLatestReceivedInstanceId().getId() );
 
                             context.acquiredConfiguration( memberList, state.getRoles() );
 
-                            if ( !memberList.containsKey( context.me ) ||
-                                    !memberList.get( context.me ).equals( context.boundAt() ) )
+                            if ( !memberList.containsKey( context.getMyId() ) ||
+                                    !memberList.get( context.getMyId() ).equals( context.boundAt() ) )
                             {
                                 context.getLogger( ClusterState.class ).info( String.format( "%s joining:%s, " +
-                                        "last delivered:%d", context.me.toString(),
+                                        "last delivered:%d", context.getMyId().toString(),
                                         context.getConfiguration().toString(),
                                         state.getLatestReceivedInstanceId().getId() ) );
 
                                 ClusterMessage.ConfigurationChangeState newState = new ClusterMessage
                                         .ConfigurationChangeState();
-                                newState.join(context.me, context.boundAt );
+                                newState.join(context.getMyId(), context.boundAt());
 
                                 // Let the coordinator propose this if possible
                                 InstanceId coordinator = state.getRoles().get( ClusterConfiguration.COORDINATOR );
@@ -176,7 +174,7 @@ public enum ClusterState
 
                                 context.getLogger( ClusterState.class ).debug( "Setup join timeout for " + message
                                         .getHeader( Message.CONVERSATION_ID ) );
-                                context.timeouts.setTimeout( "join", timeout( ClusterMessage.joiningTimeout, message,
+                                context.setTimeout( "join", timeout( ClusterMessage.joiningTimeout, message,
                                         new URI( message.getHeader( Message.FROM ) ) ) );
 
                                 return joining;
@@ -196,7 +194,8 @@ public enum ClusterState
                             if ( context.hasJoinBeenDenied() )
                             {
                                 outgoing.offer( internal( ClusterMessage.joinFailure,
-                                        new IllegalStateException( "i was denied entry" ) ) );
+                                        new ClusterEntryDeniedException( context.getMyId(),
+                                                context.getJoinDeniedConfigurationResponseState() ) ) );
                                 return start;
                             }
                             ClusterMessage.ConfigurationTimeoutState state = message.getPayload();
@@ -210,7 +209,7 @@ public enum ClusterState
                                             new ClusterMessage.ConfigurationRequestState(
                                                     context.getMyId(), context.boundAt() ) ) );
                                 }
-                                context.timeouts.setTimeout( "join",
+                                context.setTimeout( "join",
                                         timeout( ClusterMessage.configurationTimeout, message,
                                                 new ClusterMessage.ConfigurationTimeoutState(
                                                         state.getRemainingPings() - 1 ) ) );
@@ -270,16 +269,16 @@ public enum ClusterState
                                                     new ClusterMessage.ConfigurationRequestState( context.getMyId(),
                                                             context.boundAt() ) ) );
                                         }
-                                        context.timeouts.setTimeout( "discovery",
+                                        context.setTimeout( "discovery",
                                                 timeout( ClusterMessage.configurationTimeout, message,
                                                         new ClusterMessage.ConfigurationTimeoutState( 4 ) ) );
                                     }
                                 }
                                 else
                                 {
-                                     context.timeouts.setTimeout( "join",
-                                    timeout( ClusterMessage.configurationTimeout, message,
-                                            new ClusterMessage.ConfigurationTimeoutState( 4 ) ) );
+                                     context.setTimeout( "join",
+                                             timeout( ClusterMessage.configurationTimeout, message,
+                                                     new ClusterMessage.ConfigurationTimeoutState( 4 ) ) );
                                 }
                             }
 
@@ -317,9 +316,9 @@ public enum ClusterState
                         case joinDenied:
                         {
 //                            outgoing.offer( internal( ClusterMessage.joinFailure,
-//                                    new IllegalStateException( "i was denied entry" ) ) );
+//                                    new ClusterEntryDeniedException( context.me, context.configuration ) ) );
 //                            return start;
-                            context.joinDenied();
+                            context.joinDenied( (ClusterMessage.ConfigurationResponseState) message.getPayload() );
                             return this;
                         }
                     }
@@ -345,7 +344,7 @@ public enum ClusterState
 
                             if ( context.getMyId().equals( state.getJoin() ) )
                             {
-                                context.timeouts.cancelTimeout( "join" );
+                                context.cancelTimeout( "join" );
 
                                 context.joined();
                                 outgoing.offer( message.copyHeadersTo( internal( ClusterMessage.joinResponse, context.getConfiguration() ) ) );
@@ -366,7 +365,8 @@ public enum ClusterState
                             if ( context.hasJoinBeenDenied() )
                             {
                                 outgoing.offer( internal( ClusterMessage.joinFailure,
-                                    new IllegalStateException( "i was denied entry" ) ) );
+                                    new ClusterEntryDeniedException( context.getMyId(),
+                                            context.getJoinDeniedConfigurationResponseState() ) ) );
                                 return start;
                             }
 
@@ -377,7 +377,7 @@ public enum ClusterState
                                         potentialClusterInstanceUri,
                                         new ClusterMessage.ConfigurationRequestState( context.getMyId(), context.boundAt() ) ) );
                             }
-                            context.timeouts.setTimeout( "discovery",
+                            context.setTimeout( "discovery",
                                     timeout( ClusterMessage.configurationTimeout, message,
                                             new ClusterMessage.ConfigurationTimeoutState( 4 ) ) );
 
@@ -423,27 +423,40 @@ public enum ClusterState
                             request = new ClusterMessage.ConfigurationRequestState( request.getJoiningId(), URI.create(message.getHeader( Message.FROM ) ));
 
                             InstanceId joiningId = request.getJoiningId();
-                            boolean isInCluster = context.configuration.getMembers().containsKey( joiningId );
-                            boolean isCurrentlyAlive = !context.heartbeatContext.getFailed().contains( joiningId );
+                            URI joiningUri = request.getJoiningUri();
+                            boolean isInCluster = context.getMembers().containsKey( joiningId );
+                            boolean isCurrentlyAlive = context.isCurrentlyAlive(joiningId);
                             boolean messageComesFromSameHost = request.getJoiningId().equals( context.getMyId() );
+                            boolean otherInstanceJoiningWithSameId = context.isInstanceJoiningFromDifferentUri(
+                                    joiningId, joiningUri );
 
                             boolean somethingIsWrong =
-                                    isInCluster && !messageComesFromSameHost && isCurrentlyAlive ;
+                                    (isInCluster && !messageComesFromSameHost && isCurrentlyAlive) || otherInstanceJoiningWithSameId ;
 
                             if ( somethingIsWrong )
                             {
+                                if(otherInstanceJoiningWithSameId)
+                                {
+                                    context.getLogger( ClusterState.class ).info( "Denying entry to instance " + joiningId + " because another instance is currently joining with the same id.");
+                                }
+                                else
+                                {
+                                    context.getLogger( ClusterState.class ).info( "Denying entry to instance " + joiningId + " because that instance is already in the cluster.");
+                                }
                                 outgoing.offer( message.copyHeadersTo( respond( ClusterMessage.joinDenied, message,
                                         new ClusterMessage.ConfigurationResponseState( context.getConfiguration()
                                                 .getRoles(), context.getConfiguration().getMembers(),
-                                                new org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.InstanceId( context.learnerContext.getLastDeliveredInstanceId() ),
+                                                new org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.InstanceId( context.getLastDeliveredInstanceId() ),
                                                 context.getConfiguration().getName() ) ) ) );
                             }
                             else
                             {
+                                context.instanceIsJoining(joiningId, joiningUri );
+
                                 outgoing.offer( message.copyHeadersTo( respond( ClusterMessage.configurationResponse, message,
                                         new ClusterMessage.ConfigurationResponseState( context.getConfiguration()
                                                 .getRoles(), context.getConfiguration().getMembers(),
-                                                new org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.InstanceId( context.learnerContext.getLastDeliveredInstanceId() ),
+                                                new org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.InstanceId( context.getLastDeliveredInstanceId() ),
                                                 context.getConfiguration().getName() ) ) ) );
                             }
                             break;
@@ -474,10 +487,10 @@ public enum ClusterState
 
                                 ClusterMessage.ConfigurationChangeState newState = new ClusterMessage
                                         .ConfigurationChangeState();
-                                newState.leave( context.me );
+                                newState.leave( context.getMyId() );
 
                                 outgoing.offer( internal( AtomicBroadcastMessage.broadcast, newState ) );
-                                context.timeouts.setTimeout( "leave", timeout( ClusterMessage.leaveTimedout,
+                                context.setTimeout( "leave", timeout( ClusterMessage.leaveTimedout,
                                         message ) );
 
                                 return leaving;
@@ -505,7 +518,7 @@ public enum ClusterState
                             ClusterMessage.ConfigurationChangeState state = message.getPayload();
                             if ( state.isLeaving( context.getMyId() ) )
                             {
-                                context.timeouts.cancelTimeout( "leave" );
+                                context.cancelTimeout( "leave" );
 
                                 context.left();
 

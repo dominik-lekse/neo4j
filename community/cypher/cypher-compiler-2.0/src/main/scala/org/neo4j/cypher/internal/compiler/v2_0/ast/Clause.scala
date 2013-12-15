@@ -132,7 +132,7 @@ case class Merge(pattern: Pattern, actions: Seq[MergeAction], token: InputToken)
   def name = "MERGE"
 
   def semanticCheck =
-    pattern.semanticCheck(Pattern.SemanticContext.Update) then
+    pattern.semanticCheck(Pattern.SemanticContext.Merge) then
     actions.semanticCheck
 
   def legacyUpdateActions = toCommand.nextStep()
@@ -146,14 +146,17 @@ case class Merge(pattern: Pattern, actions: Seq[MergeAction], token: InputToken)
 
   def addToLegacyQuery(builder: commands.QueryBuilder) = {
     val updates = builder.updates ++ legacyUpdateActions
-    builder.updates(updates: _*)
+    val namedPaths = builder.namedPaths ++ pattern.toLegacyNamedPaths
+    builder.
+      updates(updates: _*).
+      namedPaths(namedPaths: _*)
   }
 }
 
 case class Create(pattern: Pattern, token: InputToken) extends UpdateClause {
   def name = "CREATE"
 
-  def semanticCheck = pattern.semanticCheck(Pattern.SemanticContext.Update)
+  def semanticCheck = pattern.semanticCheck(Pattern.SemanticContext.Create)
 
   lazy val legacyUpdateActions = pattern.toLegacyCreates
 
@@ -171,7 +174,7 @@ case class Create(pattern: Pattern, token: InputToken) extends UpdateClause {
 case class CreateUnique(pattern: Pattern, token: InputToken) extends UpdateClause {
   def name = "CREATE UNIQUE"
 
-  def semanticCheck = pattern.semanticCheck(Pattern.SemanticContext.Update)
+  def semanticCheck = pattern.semanticCheck(Pattern.SemanticContext.Create)
 
   def legacyUpdateActions = toCommand.nextStep()._1.map(_.inner)
 

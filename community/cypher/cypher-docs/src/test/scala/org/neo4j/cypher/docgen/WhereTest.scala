@@ -22,9 +22,11 @@ package org.neo4j.cypher.docgen
 import org.junit.Test
 import org.junit.Assert._
 import org.neo4j.graphdb.{Relationship, Node}
+import org.neo4j.visualization.graphviz.GraphStyle
+import org.neo4j.visualization.graphviz.AsciiDocSimpleStyle
 
 class WhereTest extends DocumentingTestBase {
-  def graphDescription = List(
+  override def graphDescription = List(
     "Andres KNOWS Tobias",
     "Andres:Swedish KNOWS Peter")
 
@@ -34,12 +36,15 @@ class WhereTest extends DocumentingTestBase {
     "Peter" -> Map("age" -> 34l)
   )
 
+  override protected def getGraphvizStyle: GraphStyle = 
+    AsciiDocSimpleStyle.withAutomaticRelationshipTypeColors()
+
   def section = "Where"
 
   @Test def filter_on_node_label() {
     testQuery(
       title = "Filter on node label",
-      text = "To filter nodes by label, write a label predicate after the `WHERE` keyword using either the short `WHERE n:foo` or the long `WHERE n LABEL [:foo, :bar]` form.",
+      text = "To filter nodes by label, write a label predicate after the `WHERE` keyword using `WHERE n:foo`.",
       queryText = """match (n) where n:Swedish return n""",
       returns = """The "+Andres+" node will be returned.""",
       assertions = (p) => assertEquals(List(node("Andres")), p.columnAs[Node]("n").toList))
@@ -57,7 +62,7 @@ class WhereTest extends DocumentingTestBase {
   @Test def boolean_operations() {
     testQuery(
       title = "Boolean operations",
-      text = "You can use the expected boolean operators `AND` and `OR`, and also the boolean function `NOT()`. " +
+      text = "You can use the expected boolean operators `AND` and `OR`, and also the boolean function `NOT`. " +
         "See <<cypher-working-with-null>> for more information on how this works with +NULL+.",
       queryText = """match (n) where n.name = 'Peter' xor (n.age < 30 and n.name = "Tobias") or not (n.name = "Tobias" or n.name="Peter") return n""",
       returns = "This query shows how boolean operators can be used.",
@@ -133,15 +138,15 @@ class WhereTest extends DocumentingTestBase {
 
   @Test def filter_on_null() {
     testQuery(
-      title = "Filter on null values",
-      text = "Sometimes you might want to test if a value or an identifier is +null+. This is done just like SQL does it, " +
+      title = "Filter on NULL",
+      text = "Sometimes you might want to test if a value or an identifier is +NULL+. This is done just like SQL does it, " +
         "with `IS NULL`. Also like SQL, the negative is `IS NOT NULL`, although `NOT(IS NULL x)` also works.",
       queryText = """match (person) where person.name = 'Peter' AND person.belt is null return person""",
       returns = "Nodes that Tobias is not connected to are returned.",
       assertions = (p) => assertEquals(List(Map("person" -> node("Peter"))), p.toList))
   }
 
-  @Test def has_relationship_to() {
+  @Test def filter_on_patterns() {
     testQuery(
       title = "Filter on patterns",
       text = """Patterns are expressions in Cypher, expressions that return a collection of paths. Collection
@@ -159,6 +164,15 @@ subgraphs where `a` and `b` do not have a directed relationship chain between th
       queryText = """match (tobias {name: 'Tobias'}), (others) where others.name IN ['Andres', 'Peter'] and (tobias)<--(others) return others""",
       returns = "Nodes that have an outgoing relationship to the \"+Tobias+\" node are returned.",
       assertions = (p) => assertEquals(List(Map("others" -> node("Andres"))), p.toList))
+  }
+
+  @Test def predicate_with_properties() {
+    testQuery(
+      title = "Filter on patterns with properties",
+      text = """You can also add properties to your patterns:""",
+      queryText = """match (n) where (n)-[:KNOWS]-({name:'Tobias'}) return n""",
+      returns = "Finds all nodes that have a +KNOWS+ relationship to a node with the name +Tobias+.",
+      assertions = (p) => assertEquals(List(Map("n" -> node("Andres"))), p.toList))
   }
 
   @Test def has_not_relationship_to() {
