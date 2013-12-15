@@ -69,18 +69,23 @@ public abstract class FileLock
         else if ( fileName.getName().equals( NeoStore.DEFAULT_NAME ) )
         {
             FileLock regular = wrapOrNull( channel.tryLock() );
-            if ( regular == null ) return null;
+            if ( regular == null )
+                throw new IOException( "Unable to lock " + channel +" because another process already holds the lock.");
+
             FileLock extra = getLockFileBasedFileLock( fileName.getParentFile() );
             if ( extra == null )
             {
                 regular.release();
-                return null;
+                throw new IOException( "Unable to lock lock file for " + fileName.getParentFile() );
             }
             return new DoubleFileLock( regular, extra );
         }
         else
         {
-            return wrapOrNull( channel.tryLock() );
+            FileLock regular = wrapOrNull( channel.tryLock() );
+            if ( regular == null )
+                throw new IOException( "Unable to lock " + channel + " because another process already holds the lock." );
+            return regular;
         }
     }
 
@@ -107,7 +112,8 @@ public abstract class FileLock
         if ( fileChannelLock == null )
         {
             fileChannel.close();
-            return null;
+            throw new IOException( "Couldn't lock lock file " + lockFile.getAbsolutePath()  +
+                    " because another process already holds the lock." );
         }
         return new WindowsFileLock( lockFile, fileChannel, fileChannelLock );
     }

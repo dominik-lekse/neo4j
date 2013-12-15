@@ -4,13 +4,14 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>2.0.0-RC1</version>
+    <version>2.0.0</version>
     <relativePath>../..</relativePath>
   </parent>
 
   <groupId>org.neo4j</groupId>
   <artifactId>server-plugin-test</artifactId>
-  <version>2.0.0-RC1</version>
+  <version>2.0.0</version>
+
   <name>Neo4j - Server Plugin Tests</name>
   <description>Tests the server plugin registration functionality.</description>
 
@@ -89,7 +90,7 @@ the relevant Commercial Agreement.
   <distributionManagement>
     <site>
       <id>neo4j-site</id>
-      <url>scpexe://docs.neo4j.org/var/www/components.neo4j.org/${project.artifactId}/${project.version}</url>
+      <url>scpexe://docs.neo4j.org/data/www/doc/components.neo4j.org/${project.artifactId}/${project.version}</url>
     </site>
   </distributionManagement>
 

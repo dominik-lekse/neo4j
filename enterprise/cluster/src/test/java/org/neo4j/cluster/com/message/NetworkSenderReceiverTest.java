@@ -19,13 +19,6 @@
  */
 package org.neo4j.cluster.com.message;
 
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -37,6 +30,7 @@ import org.junit.Test;
 import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+
 import org.neo4j.cluster.ClusterSettings;
 import org.neo4j.cluster.com.NetworkReceiver;
 import org.neo4j.cluster.com.NetworkSender;
@@ -49,6 +43,12 @@ import org.neo4j.kernel.lifecycle.Lifecycle;
 import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 import org.neo4j.kernel.logging.DevNullLoggingService;
 import org.neo4j.kernel.logging.Logging;
+
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NetworkSenderReceiverTest
 {
@@ -120,7 +120,7 @@ public class NetworkSenderReceiverTest
                     sem.release();
                     return null;
                 }
-            } ).when( loggerMock ).warn( anyString(), any( Exception.class ) );
+            } ).when( loggerMock ).warn( anyString() );
 
             receiver = new NetworkReceiver( new NetworkReceiver.Configuration()
             {
@@ -128,6 +128,18 @@ public class NetworkSenderReceiverTest
                 public HostnamePort clusterServer()
                 {
                     return new HostnamePort( "127.0.0.1:1235" );
+                }
+
+                @Override
+                public int defaultPort()
+                {
+                    return 5001;
+                }
+
+                @Override
+                public String name()
+                {
+                    return null;
                 }
             }, new DevNullLoggingService() )
             {
@@ -252,6 +264,18 @@ public class NetworkSenderReceiverTest
                 public HostnamePort clusterServer()
                 {
                     return conf.get( ClusterSettings.cluster_server );
+                }
+
+                @Override
+                public int defaultPort()
+                {
+                    return 5001;
+                }
+
+                @Override
+                public String name()
+                {
+                    return null;
                 }
             }, new DevNullLoggingService()));
 

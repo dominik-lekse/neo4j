@@ -28,14 +28,16 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import org.jboss.netty.channel.Channel;
+
 import org.neo4j.com.Protocol;
 import org.neo4j.com.RequestContext;
 import org.neo4j.com.RequestType;
 import org.neo4j.com.Server;
+import org.neo4j.com.TransactionNotPresentOnMasterException;
 import org.neo4j.com.TxChecksumVerifier;
 import org.neo4j.kernel.ha.HaRequestType20;
 import org.neo4j.kernel.ha.MasterClient20;
-import org.neo4j.kernel.ha.transaction.UnableToResumeTransactionException;
+import org.neo4j.kernel.impl.transaction.TransactionAlreadyActiveException;
 import org.neo4j.kernel.logging.Logging;
 
 import static org.neo4j.helpers.Clock.SYSTEM_CLOCK;
@@ -64,13 +66,21 @@ public class MasterServer extends Server<Master, Void>
     @Override
     protected void finishOffChannel( Channel channel, RequestContext context )
     {
-        getRequestTarget().finishTransaction( context, false );
+        try
+        {
+            getRequestTarget().finishTransaction( context, false );
+        }
+        catch ( TransactionNotPresentOnMasterException e )
+        {
+            // This is OK. This method has been called due to some connection problem or similar,
+            // it's a best-effort to finish of a channel and transactions associated with it.
+        }
     }
 
     @Override
     protected boolean shouldLogFailureToFinishOffChannel( Throwable failure )
     {
-        return !(failure instanceof UnableToResumeTransactionException);
+        return !(failure instanceof TransactionAlreadyActiveException);
     }
 
     public Map<Integer, Collection<RequestContext>> getSlaveInformation()

@@ -6,11 +6,11 @@ rem
   if not "%JAVA_HOME%" == "" (
     
     if exist "%JAVA_HOME%\bin\javac.exe" (
-      set javaPath= "%JAVA_HOME%\jre"
+      set javaPath="%JAVA_HOME%\jre"
       goto:eof
     )
 
-    set javaPath= "%JAVA_HOME%"
+    set javaPath="%JAVA_HOME%"
     goto:eof
   )
 
@@ -29,7 +29,7 @@ rem
   )
 
   if "%javaVersion%" == "" (
-    set javaHomeError=Unable to locate jvm. Could not find %keyName%/%valueName% entry in windows registry. Please make sure you either have %JAVA_HOME% environment variable defined and pointing to a JRE installation, or the registry key defined.
+    set javaHomeError=ERROR! Unable to locate Java. Could not find %keyName%/%valueName% entry in windows registry. Please make sure you either have JAVA_HOME environment variable defined and pointing to a JRE installation, or the registry key defined.
     goto:eof
   )
 

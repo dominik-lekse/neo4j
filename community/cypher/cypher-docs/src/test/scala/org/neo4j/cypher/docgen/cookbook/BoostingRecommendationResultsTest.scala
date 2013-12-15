@@ -26,7 +26,6 @@ import org.neo4j.visualization.graphviz.GraphStyle
 import org.neo4j.visualization.graphviz.AsciiDocSimpleStyle
 
 class BoostingRecommendationResultsTest extends DocumentingTestBase {
-  def graphDescription = List()
   def section = "cookbook"
   generateInitialGraphForConsole = false
   override val noTitle = true;
@@ -34,9 +33,8 @@ class BoostingRecommendationResultsTest extends DocumentingTestBase {
   override protected def getGraphvizStyle: GraphStyle = {
     AsciiDocSimpleStyle.withAutomaticRelationshipTypeColors()
   }
-
-  @Test def boostingRecommendations() {
-    executeQuery("""create 
+  
+  override val setupQueries = List("""create 
 (clark {name: "Clark Kent"}),
 (lois {name:"Lois Lane"}),
 (jimmy {name:"Jimmy Olsen"}),
@@ -49,19 +47,21 @@ clark-[:KNOWS {weight: 4}]->jimmy,
 lois-[:KNOWS {weight: 4}]->perry,
 jimmy-[:KNOWS {weight: 4}]->perry,
 lois-[:KNOWS {weight: 4}]->cooper,
-clark-[:WORKSAT {weight: 2, activity: 45}]->dailyplanet,
-jimmy-[:WORKSAT {weight: 2, activity: 10}]->dailyplanet,
-perry-[:WORKSAT {weight: 2, activity: 6}]->dailyplanet,
-lois-[:WORKSAT {weight: 2, activity: 56}]->dailyplanet,
-cooper-[:WORKSAT {weight: 2, activity: 2}]->cnn,
-perry-[:WORKSAT {weight: 2, activity: 3}]->cnn""")
+clark-[:WORKS_AT {weight: 2, activity: 45}]->dailyplanet,
+jimmy-[:WORKS_AT {weight: 2, activity: 10}]->dailyplanet,
+perry-[:WORKS_AT {weight: 2, activity: 6}]->dailyplanet,
+lois-[:WORKS_AT {weight: 2, activity: 56}]->dailyplanet,
+cooper-[:WORKS_AT {weight: 2, activity: 2}]->cnn,
+perry-[:WORKS_AT {weight: 2, activity: 3}]->cnn""")
+
+  @Test def boostingRecommendations() {
     testQuery(
       title = "Boosting with properties on relationships",
       text =
 """This query finds the recommended friends for the origin that are working at the same place as the origin, 
 or know a person that the origin knows, also, the origin should not already know the target. This recommendation is 
 weighted for the weight of the relationship `r2`, and boosted with a factor of 2, if there is an `activity`-property on that relationship""",
-      queryText = """MATCH (origin)-[r1:KNOWS|:WORKSAT]-(c)-[r2:KNOWS|:WORKSAT]-(candidate)
+      queryText = """MATCH (origin)-[r1:KNOWS|WORKS_AT]-(c)-[r2:KNOWS|WORKS_AT]-(candidate)
 WHERE origin.name = "Clark Kent"
 AND type(r1)=type(r2) AND NOT (origin)-[:KNOWS]-(candidate)
 RETURN origin.name as origin, candidate.name as candidate, 

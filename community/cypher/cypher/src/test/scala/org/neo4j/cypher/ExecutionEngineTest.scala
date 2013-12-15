@@ -21,7 +21,7 @@ package org.neo4j.cypher
 
 import org.hamcrest.CoreMatchers._
 import org.neo4j.graphdb._
-import org.neo4j.kernel.{EmbeddedReadOnlyGraphDatabase, TopLevelTransaction}
+import org.neo4j.kernel.TopLevelTransaction
 import org.neo4j.test.ImpermanentGraphDatabase
 import org.junit.Assert._
 import scala.collection.JavaConverters._
@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit
 import org.neo4j.cypher.internal.PathImpl
 import org.neo4j.graphdb.factory.{GraphDatabaseSettings, GraphDatabaseFactory}
 import org.scalautils.LegacyTripleEquals
-import org.neo4j.helpers.collection.MapUtil
 
 class ExecutionEngineTest extends ExecutionEngineHelper with StatisticsChecker with LegacyTripleEquals {
 
@@ -753,6 +752,21 @@ foreach(x in [1,2,3] |
     execute("start a = node(0), b = node(1) match p = shortestPath(a-[*]-b) return p").toList
   }
 
+  @Test def shouldNotTraverseSameRelationshipTwiceInShortestPath() {
+    // given
+    createNodes("A", "B")
+    relate("A" -> "KNOWS" -> "B")
+
+    // when
+    val result = execute("MATCH (a{name:'A'}), (b{name:'B'}) MATCH p=allShortestPaths((a)-[:KNOWS|KNOWS*]->(b)) RETURN p").
+      toList
+
+    // then
+    graph.inTx {
+      assert(result.size === 1, result)
+    }
+  }
+
   @Test def shouldBeAbleToTakeParamsInDifferentTypes() {
     createNodes("A", "B", "C", "D", "E")
 
@@ -1160,7 +1174,7 @@ return other""")
 
   @Test def shouldHandleCheckingThatANodeDoesNotHaveAProp() {
     val a = createNode()
-    
+
     val result = execute("start a=node(0) where not has(a.propertyDoesntExist) return a")
     assert(List(Map("a" -> a)) === result.toList)
   }
@@ -1960,7 +1974,7 @@ RETURN x0.name""")
 
     assert(result.toList === List(Map("test" -> "atest")))
   }
-  
+
   @Test
   def substring_with_default_length() {
     val result = execute("return substring('0123456789', 1) as s")
@@ -2366,7 +2380,7 @@ RETURN x0.name""")
     val m = createNode("m")
     relate(n,m,"link")
     val result = execute("start n = node(0) with coalesce(n,n) as n match n--() return n")
-    
+
     assert(result.toList === List(Map("n" -> n)))
   }
 
@@ -2469,13 +2483,7 @@ RETURN x0.name""")
 
   @Test
   def merge_should_not_support_map_parameters_for_defining_properties() {
-    try {
-      execute("MERGE (n:User {merge_map})", ("merge_map", Map("email" -> "test")))
-      fail()
-    } catch {
-      case x: PatternException => // expected
-      case _: Throwable => fail()
-    }
+    intercept[SyntaxException](execute("MERGE (n:User {merge_map})", ("merge_map", Map("email" -> "test"))))
   }
 
   @Test
@@ -2612,5 +2620,45 @@ RETURN x0.name""")
     // then
     assert(result("name") === "Foo")
     assert(result("count") === 1)
+  }
+
+  @Test
+  def should_handle_queries_that_cant_be_index_solved_because_expressions_lack_dependencies() {
+    // Given
+    val a = createLabeledNode(Map("property"->42), "Label")
+    val b = createLabeledNode(Map("property"->42), "Label")
+    val c = createLabeledNode(Map("property"->666), "Label")
+    val d = createLabeledNode(Map("property"->666), "Label")
+    val e = createLabeledNode(Map("property"->1), "Label")
+    relate(a,b)
+    relate(a,e)
+    graph.createIndex("Label", "property")
+
+    // when
+    val result = execute("match (a:Label)-->(b:Label) where a.property = b.property return a, b")
+
+    // then does not throw exceptions
+    assert(result.toList === List(Map("a" -> a, "b" -> b)))
+  }
+
+  @Test
+  def should_handle_queries_that_cant_be_index_solved_because_expressions_lack_dependencies_with_two_disjoin_patterns() {
+    // Given
+    val a = createLabeledNode(Map("property"->42), "Label")
+    val b = createLabeledNode(Map("property"->42), "Label")
+    val e = createLabeledNode(Map("property"->1), "Label")
+    graph.createIndex("Label", "property")
+
+    // when
+    val result = execute("match (a:Label), (b:Label) where a.property = b.property return *")
+
+    // then does not throw exceptions
+    assert(result.toSet === Set(
+      Map("a"->a, "b"->a),
+      Map("a"->a, "b"->b),
+      Map("a"->b, "b"->b),
+      Map("a"->b, "b"->a),
+      Map("a"->e, "b"->e)
+    ))
   }
 }

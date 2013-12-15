@@ -21,6 +21,7 @@ package org.neo4j.cluster.protocol.election;
 
 import static junit.framework.Assert.assertNull;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -30,15 +31,23 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import org.junit.Test;
 import org.mockito.Matchers;
+import org.mockito.Mockito;
 import org.neo4j.cluster.InstanceId;
+import org.neo4j.cluster.protocol.atomicbroadcast.ObjectInputStreamFactory;
+import org.neo4j.cluster.protocol.atomicbroadcast.ObjectOutputStreamFactory;
+import org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.AcceptorInstanceStore;
+import org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.MultiPaxosContext;
 import org.neo4j.cluster.protocol.cluster.ClusterConfiguration;
 import org.neo4j.cluster.protocol.cluster.ClusterContext;
 import org.neo4j.cluster.protocol.heartbeat.HeartbeatContext;
+import org.neo4j.cluster.timeout.Timeouts;
 import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.kernel.impl.util.StringLogger;
+import org.neo4j.kernel.logging.Logging;
 
 public class ElectionContextTest
 {
@@ -60,13 +69,108 @@ public class ElectionContextTest
     }
 
     @Test
-    public void testElectionOkMoreThanQuorumFailed()
+    public void testElectionNotOkMoreThanQuorumFailed()
     {
         Set<InstanceId> failed = new HashSet<InstanceId>();
         failed.add( new InstanceId( 1 ) );
         failed.add( new InstanceId( 2 ) );
 
         baseTestForElectionOk( failed, true );
+    }
+
+    @Test
+    public void testElectionNotOkQuorumFailedTwoInstances()
+    {
+        Set<InstanceId> failed = new HashSet<InstanceId>();
+        failed.add( new InstanceId( 2 ) );
+
+        Map<InstanceId, URI> members = new HashMap<InstanceId, URI>();
+        members.put( new InstanceId( 1 ), URI.create( "server1" ) );
+        members.put( new InstanceId( 2 ), URI.create( "server2" ) );
+
+        ClusterConfiguration clusterConfiguration = mock( ClusterConfiguration.class );
+        when( clusterConfiguration.getMembers() ).thenReturn( members );
+
+        ClusterContext clusterContext = mock( ClusterContext.class );
+        when( clusterContext.getConfiguration() ).thenReturn( clusterConfiguration );
+
+        MultiPaxosContext context = new MultiPaxosContext( new InstanceId(1), Iterables.<ElectionRole, ElectionRole>iterable(
+                new ElectionRole( "coordinator" ) ), clusterConfiguration,
+                Mockito.mock(Executor.class), Mockito.mock(Logging.class),
+                Mockito.mock( ObjectInputStreamFactory.class), Mockito.mock( ObjectOutputStreamFactory.class),
+                Mockito.mock( AcceptorInstanceStore.class), Mockito.mock( Timeouts.class) );
+
+        context.getHeartbeatContext().getFailed().addAll( failed );
+
+        ElectionContext toTest = context.getElectionContext();
+
+        assertFalse( toTest.electionOk() );
+    }
+
+    @Test
+    public void testElectionNotOkQuorumFailedFourInstances()
+    {
+        Set<InstanceId> failed = new HashSet<InstanceId>();
+        failed.add( new InstanceId( 2 ) );
+        failed.add( new InstanceId( 3 ) );
+
+        Map<InstanceId, URI> members = new HashMap<InstanceId, URI>();
+        members.put( new InstanceId( 1 ), URI.create( "server1" ) );
+        members.put( new InstanceId( 2 ), URI.create( "server2" ) );
+        members.put( new InstanceId( 3 ), URI.create( "server3" ) );
+        members.put( new InstanceId( 4 ), URI.create( "server4" ) );
+
+        ClusterConfiguration clusterConfiguration = mock( ClusterConfiguration.class );
+        when( clusterConfiguration.getMembers() ).thenReturn( members );
+
+        ClusterContext clusterContext = mock( ClusterContext.class );
+        when( clusterContext.getConfiguration() ).thenReturn( clusterConfiguration );
+
+        MultiPaxosContext context = new MultiPaxosContext( new InstanceId(1), Iterables.<ElectionRole, ElectionRole>iterable(
+                new ElectionRole( "coordinator" ) ), clusterConfiguration,
+                Mockito.mock(Executor.class), Mockito.mock(Logging.class),
+                Mockito.mock( ObjectInputStreamFactory.class), Mockito.mock( ObjectOutputStreamFactory.class),
+                Mockito.mock( AcceptorInstanceStore.class), Mockito.mock( Timeouts.class) );
+
+        context.getHeartbeatContext().getFailed().addAll( failed );
+
+        ElectionContext toTest = context.getElectionContext();
+
+        assertFalse( toTest.electionOk() );
+    }
+
+    @Test
+    public void testElectionNotOkQuorumFailedFiveInstances()
+    {
+        Set<InstanceId> failed = new HashSet<InstanceId>();
+        failed.add( new InstanceId( 2 ) );
+        failed.add( new InstanceId( 3 ) );
+        failed.add( new InstanceId( 4 ) );
+
+        Map<InstanceId, URI> members = new HashMap<InstanceId, URI>();
+        members.put( new InstanceId( 1 ), URI.create( "server1" ) );
+        members.put( new InstanceId( 2 ), URI.create( "server2" ) );
+        members.put( new InstanceId( 3 ), URI.create( "server3" ) );
+        members.put( new InstanceId( 4 ), URI.create( "server4" ) );
+        members.put( new InstanceId( 5 ), URI.create( "server5" ) );
+
+        ClusterConfiguration clusterConfiguration = mock( ClusterConfiguration.class );
+        when( clusterConfiguration.getMembers() ).thenReturn( members );
+
+        ClusterContext clusterContext = mock( ClusterContext.class );
+        when( clusterContext.getConfiguration() ).thenReturn( clusterConfiguration );
+
+        MultiPaxosContext context = new MultiPaxosContext( new InstanceId(1), Iterables.<ElectionRole, ElectionRole>iterable(
+                new ElectionRole( "coordinator" ) ), clusterConfiguration,
+                Mockito.mock(Executor.class), Mockito.mock(Logging.class),
+                Mockito.mock( ObjectInputStreamFactory.class), Mockito.mock( ObjectOutputStreamFactory.class),
+                Mockito.mock( AcceptorInstanceStore.class), Mockito.mock( Timeouts.class) );
+
+        context.getHeartbeatContext().getFailed().addAll( failed );
+
+        ElectionContext toTest = context.getElectionContext();
+
+        assertFalse( toTest.electionOk() );
     }
 
     @Test
@@ -87,10 +191,17 @@ public class ElectionContextTest
 
         ClusterContext clusterContext = mock( ClusterContext.class );
         when( clusterContext.getConfiguration() ).thenReturn( clusterConfiguration );
-        when ( clusterContext.getLogger( Matchers.<Class>any() ) ).thenReturn( mock( StringLogger.class ) );
 
-        ElectionContext toTest = new ElectionContext( Iterables.<ElectionRole, ElectionRole>iterable(
-                new ElectionRole( coordinatorRole ) ), clusterContext, heartbeatContext );
+        Logging logging = Mockito.mock( Logging.class );
+        when ( logging.getMessagesLog( Matchers.<Class>any() ) ).thenReturn( mock( StringLogger.class ) );
+
+        MultiPaxosContext context = new MultiPaxosContext( new InstanceId(1), Iterables.<ElectionRole, ElectionRole>iterable(
+                        new ElectionRole( coordinatorRole ) ), clusterConfiguration,
+                        Mockito.mock(Executor.class), logging,
+                        Mockito.mock( ObjectInputStreamFactory.class), Mockito.mock( ObjectOutputStreamFactory.class),
+                Mockito.mock( AcceptorInstanceStore.class), Mockito.mock( Timeouts.class) );
+
+        ElectionContext toTest = context.getElectionContext();
 
         // When
         toTest.startElectionProcess( coordinatorRole );
@@ -105,9 +216,6 @@ public class ElectionContextTest
 
     private void baseTestForElectionOk( Set<InstanceId> failed, boolean moreThanQuorum )
     {
-        HeartbeatContext heartbeatContext = mock(HeartbeatContext.class);
-        when( heartbeatContext.getFailed() ).thenReturn( failed );
-
         Map<InstanceId, URI> members = new HashMap<InstanceId, URI>();
         members.put( new InstanceId( 1 ), URI.create( "server1" ) );
         members.put( new InstanceId( 2 ), URI.create( "server2" ) );
@@ -119,8 +227,15 @@ public class ElectionContextTest
         ClusterContext clusterContext = mock( ClusterContext.class );
         when( clusterContext.getConfiguration() ).thenReturn( clusterConfiguration );
 
-        ElectionContext toTest = new ElectionContext( Iterables.<ElectionRole, ElectionRole>iterable(
-                new ElectionRole("coordinator") ), clusterContext, heartbeatContext );
+        MultiPaxosContext context = new MultiPaxosContext( new InstanceId(1), Iterables.<ElectionRole, ElectionRole>iterable(
+                        new ElectionRole( "coordinator" ) ), clusterConfiguration,
+                        Mockito.mock(Executor.class), Mockito.mock(Logging.class),
+                        Mockito.mock( ObjectInputStreamFactory.class), Mockito.mock( ObjectOutputStreamFactory.class),
+                Mockito.mock( AcceptorInstanceStore.class), Mockito.mock( Timeouts.class) );
+
+        context.getHeartbeatContext().getFailed().addAll( failed );
+
+        ElectionContext toTest = context.getElectionContext();
 
         assertEquals( moreThanQuorum, !toTest.electionOk() );
     }

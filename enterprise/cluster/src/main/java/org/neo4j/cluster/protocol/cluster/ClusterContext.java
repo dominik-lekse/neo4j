@@ -19,270 +19,84 @@
  */
 package org.neo4j.cluster.protocol.cluster;
 
-import static org.neo4j.helpers.Predicates.in;
-import static org.neo4j.helpers.Predicates.not;
-import static org.neo4j.helpers.collection.Iterables.filter;
-
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 import org.neo4j.cluster.InstanceId;
+import org.neo4j.cluster.protocol.ConfigurationContext;
+import org.neo4j.cluster.protocol.LoggingContext;
+import org.neo4j.cluster.protocol.TimeoutsContext;
 import org.neo4j.cluster.protocol.atomicbroadcast.ObjectInputStreamFactory;
 import org.neo4j.cluster.protocol.atomicbroadcast.ObjectOutputStreamFactory;
-import org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.LearnerContext;
-import org.neo4j.cluster.protocol.atomicbroadcast.multipaxos.ProposerContext;
-import org.neo4j.cluster.protocol.heartbeat.HeartbeatContext;
-import org.neo4j.cluster.timeout.Timeouts;
-import org.neo4j.helpers.Listeners;
-import org.neo4j.helpers.collection.Iterables;
-import org.neo4j.kernel.impl.util.StringLogger;
-import org.neo4j.kernel.logging.Logging;
+import org.neo4j.cluster.protocol.cluster.ClusterMessage.ConfigurationResponseState;
 
 /**
  * Context for cluster API state machine
  *
  * @see ClusterState
  */
-public class ClusterContext
+public interface ClusterContext
+    extends LoggingContext, TimeoutsContext, ConfigurationContext
 {
-    final InstanceId me;
-    Iterable<ClusterListener> listeners = Listeners.newListeners();
-    final ProposerContext proposerContext;
-    final LearnerContext learnerContext;
-    HeartbeatContext heartbeatContext;
-    public ClusterConfiguration configuration;
-    public final Timeouts timeouts;
-    private Executor executor;
-    private Logging logging;
-    private List<ClusterMessage.ConfigurationRequestState> discoveredInstances = new ArrayList<ClusterMessage.ConfigurationRequestState>();
-    private String joiningClusterName; // for debugging
-    private Iterable<URI> joiningInstances;
-    URI boundAt;
-    private boolean joinDenied;
-
-    private ObjectInputStreamFactory objectInputStreamFactory;
-    private ObjectOutputStreamFactory objectOutputStreamFactory;
-
-    public ClusterContext( InstanceId me, ProposerContext proposerContext,
-                           LearnerContext learnerContext,
-                           ClusterConfiguration configuration,
-                           Timeouts timeouts, Executor executor,
-                           Logging logging,
-                           ObjectInputStreamFactory objectInputStreamFactory,
-                           ObjectOutputStreamFactory objectOutputStreamFactory )
-    {
-        this.me = me;
-        this.proposerContext = proposerContext;
-        this.learnerContext = learnerContext;
-        this.configuration = configuration;
-        this.timeouts = timeouts;
-        this.executor = executor;
-        this.logging = logging;
-        this.objectInputStreamFactory = objectInputStreamFactory;
-        this.objectOutputStreamFactory = objectOutputStreamFactory;
-    }
 
     // Cluster API
-    public void addClusterListener( ClusterListener listener )
-    {
-        listeners = Listeners.addListener( listener, listeners );
-    }
+    void addClusterListener( ClusterListener listener );
 
-    public void removeClusterListener( ClusterListener listener )
-    {
-        listeners = Listeners.removeListener( listener, listeners );
-    }
+    void removeClusterListener( ClusterListener listener );
 
     // Implementation
-    public void created( String name )
-    {
-        configuration = new ClusterConfiguration( name, logging.getMessagesLog( ClusterConfiguration.class ), Collections.singleton( boundAt ) );
-        joined();
-    }
+    void created( String name );
 
-    public void joining( String name, Iterable<URI> instanceList )
-    {
-        joiningClusterName = name;
-        joiningInstances = instanceList;
-        discoveredInstances.clear();
-        joinDenied = false;
-    }
+    void joining( String name, Iterable<URI> instanceList );
 
-    public void acquiredConfiguration( final Map<InstanceId, URI> memberList, final Map<String, InstanceId> roles )
-    {
-        configuration.setMembers( memberList );
-        configuration.setRoles( roles );
-    }
+    void acquiredConfiguration( final Map<InstanceId, URI> memberList, final Map<String, InstanceId> roles );
 
-    public void joined()
-    {
-        configuration.joined( me, boundAt );
-        Listeners.notifyListeners( listeners, executor, new Listeners.Notification<ClusterListener>()
-        {
-            @Override
-            public void notify( ClusterListener listener )
-            {
-                listener.enteredCluster( configuration );
-            }
-        } );
-    }
+    void joined();
 
-    public void left()
-    {
-        timeouts.cancelAllTimeouts();
-        configuration.left();
-        Listeners.notifyListeners( listeners, executor, new Listeners.Notification<ClusterListener>()
-        {
-            @Override
-            public void notify( ClusterListener listener )
-            {
-                listener.leftCluster();
-            }
-        } );
-    }
+    void left();
 
-    public void joined( final InstanceId instanceId, final URI atURI )
-    {
-        configuration.joined( instanceId, atURI );
+    void joined( final InstanceId instanceId, final URI atURI );
 
-        if ( configuration.getMembers().containsKey( me ) )
-        {
-            // Make sure this node is in cluster before notifying of others joining and leaving
-            Listeners.notifyListeners( listeners, executor, new Listeners.Notification<ClusterListener>()
-            {
-                @Override
-                public void notify( ClusterListener listener )
-                {
-                    listener.joinedCluster( instanceId, atURI );
-                }
-            } );
-        }
-        else
-        {
-            // This typically happens in situations when several nodes join at once, and the ordering
-            // of join messages is a little out of whack.
-        }
-    }
+    void left( final InstanceId node );
 
-    public void left( final InstanceId node )
-    {
-        configuration.left( node );
-        Listeners.notifyListeners( listeners, executor, new Listeners.Notification<ClusterListener>()
-        {
-            @Override
-            public void notify( ClusterListener listener )
-            {
-                listener.leftCluster( node );
-            }
-        } );
-    }
+    void elected( final String roleName, final InstanceId instanceId );
 
-    public void elected( final String roleName, final InstanceId instanceId )
-    {
-        configuration.elected( roleName, instanceId );
-        Listeners.notifyListeners( listeners, executor, new Listeners.Notification<ClusterListener>()
-        {
-            @Override
-            public void notify( ClusterListener listener )
-            {
-                listener.elected( roleName, instanceId, configuration.getUriForId( instanceId ) );
-            }
-        } );
-    }
+    void unelected( final String roleName, final InstanceId instanceId );
 
-    public void unelected( final String roleName, final InstanceId instanceId )
-    {
-        configuration.unelected( roleName );
-        Listeners.notifyListeners( listeners, executor, new Listeners.Notification<ClusterListener>()
-        {
-            @Override
-            public void notify( ClusterListener listener )
-            {
-                listener.unelected( roleName, instanceId, configuration.getUriForId( instanceId ) );
-            }
-        } );
-    }
+    ClusterConfiguration getConfiguration();
 
-    public InstanceId getMyId()
-    {
-        return me;
-    }
+    boolean isElectedAs( String roleName );
 
-    public ClusterConfiguration getConfiguration()
-    {
-        return configuration;
-    }
+    boolean isInCluster();
 
-    public synchronized boolean isMe( InstanceId server )
-    {
-        return me.equals( server );
-    }
+    Iterable<URI> getJoiningInstances();
 
-    public boolean isInCluster()
-    {
-        return Iterables.count( configuration.getMemberURIs() ) != 0;
-    }
+    ObjectOutputStreamFactory getObjectOutputStreamFactory();
 
-    public Iterable<URI> getJoiningInstances()
-    {
-        return joiningInstances;
-    }
+    ObjectInputStreamFactory getObjectInputStreamFactory();
 
-    public ObjectOutputStreamFactory getObjectOutputStreamFactory() {
-        return objectOutputStreamFactory;
-    }
+    List<ClusterMessage.ConfigurationRequestState> getDiscoveredInstances();
 
-    public ObjectInputStreamFactory getObjectInputStreamFactory() {
-        return objectInputStreamFactory;
-    }
+    void setBoundAt( URI boundAt );
 
-    public List<ClusterMessage.ConfigurationRequestState> getDiscoveredInstances()
-    {
-        return discoveredInstances;
-    }
+    void joinDenied( ConfigurationResponseState configurationResponseState );
 
-    public StringLogger getLogger( Class loggingClass )
-    {
-        return logging.getMessagesLog( loggingClass );
-    }
+    boolean hasJoinBeenDenied();
+    
+    ConfigurationResponseState getJoinDeniedConfigurationResponseState();
 
-    @Override
-    public String toString()
-    {
-        return "Me: " + me + " Bound at: " + boundAt + " Config:" + configuration;
-    }
+    Iterable<InstanceId> getOtherInstances();
 
-    public URI boundAt()
-    {
-        return boundAt;
-    }
+    boolean isInstanceJoiningFromDifferentUri( InstanceId joiningId, URI joiningUri );
 
-    public void setBoundAt( URI boundAt )
-    {
-        this.boundAt = boundAt;
-    }
+    void instanceIsJoining( InstanceId joiningId, URI uri );
 
-    public void setHeartbeatContext( HeartbeatContext heartbeatContext )
-    {
-        this.heartbeatContext = heartbeatContext;
-    }
+    String myName();
 
-    public void joinDenied()
-    {
-        this.joinDenied = true;
-    }
+    void discoveredLastReceivedInstanceId( long id );
 
-    public boolean hasJoinBeenDenied()
-    {
-        return joinDenied;
-    }
+    boolean isCurrentlyAlive( InstanceId joiningId );
 
-    public Iterable<InstanceId> getOtherInstances()
-    {
-        return filter( not( in( me ) ), configuration.getMemberIds() );
-    }
+    long getLastDeliveredInstanceId();
 }
