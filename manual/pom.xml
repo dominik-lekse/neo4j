@@ -4,12 +4,13 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>2.0.0-RC1</version>
+    <version>2.0.0</version>
     <relativePath>..</relativePath>
   </parent>
   <groupId>org.neo4j.doc</groupId>
   <artifactId>neo4j-manual</artifactId>
-  <version>2.0.0-RC1</version>
+  <version>2.0.0</version>
+
   <name>Neo4j - Reference Manual</name>
   <description>Neo4j Reference Manual.</description>
   <url>http://components.neo4j.org/${project.artifactId}/${project.version}</url>
@@ -23,7 +24,7 @@
     <docs.images>${project.build.outputDirectory}/images</docs.images>
     <docs.tools>${project.build.directory}/tools</docs.tools>
     <neo4j.version>${project.version}</neo4j.version>
-    <doctools.version>14</doctools.version>
+    <doctools.version>15</doctools.version>
     <attach-docs-phase>none</attach-docs-phase>
     <maven.site.skip>true</maven.site.skip>
     <maven.site.deploy.skip>true</maven.site.deploy.skip>
@@ -340,6 +341,7 @@
                 <argument>${docs.sources}/cypherdoc</argument>
                 <argument>${project.build.directory}/../src/tutorials/cypher</argument>
                 <argument>${project.build.directory}/../src/tutorials/modeling</argument>
+                <argument>${project.build.directory}/../src/cypher</argument>
               </arguments>
             </configuration>
           </execution>

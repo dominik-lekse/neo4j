@@ -36,9 +36,9 @@ import org.neo4j.graphdb.schema.IndexDefinition;
 import org.neo4j.graphdb.schema.Schema;
 import org.neo4j.helpers.Function;
 import org.neo4j.helpers.ThisShouldNotHappenError;
-import org.neo4j.kernel.impl.coreapi.ThreadToStatementContextBridge;
+import org.neo4j.kernel.impl.core.ThreadToStatementContextBridge;
 import org.neo4j.kernel.api.exceptions.InvalidTransactionTypeKernelException;
-import org.neo4j.kernel.api.ReadOnlyDatabaseKernelException;
+import org.neo4j.kernel.api.exceptions.ReadOnlyDatabaseKernelException;
 import org.neo4j.kernel.api.ReadOperations;
 import org.neo4j.kernel.api.Statement;
 import org.neo4j.kernel.api.constraints.UniquenessConstraint;
@@ -56,9 +56,9 @@ import org.neo4j.kernel.api.exceptions.schema.IllegalTokenNameException;
 import org.neo4j.kernel.api.exceptions.schema.SchemaRuleNotFoundException;
 import org.neo4j.kernel.api.exceptions.schema.TooManyLabelsException;
 import org.neo4j.kernel.api.index.InternalIndexState;
-import org.neo4j.kernel.api.operations.KeyReadOperations;
-import org.neo4j.kernel.api.operations.StatementTokenNameLookup;
-import org.neo4j.kernel.impl.api.index.IndexDescriptor;
+import org.neo4j.kernel.impl.api.operations.KeyReadOperations;
+import org.neo4j.kernel.api.StatementTokenNameLookup;
+import org.neo4j.kernel.api.index.IndexDescriptor;
 import org.neo4j.kernel.impl.core.ReadOnlyDbException;
 
 import static java.lang.String.format;
@@ -493,7 +493,7 @@ public class SchemaImpl implements Schema
             }
             catch ( IllegalTokenNameException | TooManyLabelsException | DropConstraintFailureException e )
             {
-                throw new ThisShouldNotHappenError( "Mattias", "Unable to drop property unique constraint" );
+                throw new ThisShouldNotHappenError( "Mattias", "Unable to drop property unique constraint", e );
             }
             catch ( InvalidTransactionTypeKernelException e )
             {

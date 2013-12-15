@@ -35,10 +35,15 @@ Here's some sample configurations:
 
 [source,plain]
 ----
-# Using default values
-enable_remote_shell = true
-# ...or specify custom port, use default values for the others
-enable_remote_shell = port=1234
+# Enable the remote shell feature
+remote_shell_enabled = true
+
+# The default port is 1337, but you can specify something else if you like
+remote_shell_port = 1337
+
+# If you want to be a little protective of your data,
+# you can also tell the shell to only support read operations
+remote_shell_read_only = true
 ----
 
 When using the Neo4j server, see <<server-configuration>> for how to add configuration settings in that case.
@@ -82,9 +87,9 @@ $ neo4j-shell -readonly -path path/to/neo4j-db
 === Run a command and then exit ===
 
 It is possible to tell the shell to just start, execute a command and then exit.
-This opens up for uses of background jobs and also handling of huge output of f.ex. an '''ls''' command where you then could pipe the output to '''less''' or another reader of your choice, or even to a file.
+This opens up for uses of background jobs and also handling of huge output of f.ex. an +ls+ command where you then could pipe the output to +less+ or another reader of your choice, or even to a file.
 
-And even to another neo4j-shell, e.g. for importing a '''dump''' of another database or cypher result. When used with command mode the shell will not output a welcome message.
+And even to another neo4j-shell, e.g. for importing a +dump+ of another database or cypher result. When used with command mode the shell will not output a welcome message.
 So some examples of usage:
 [source,plain]
 ----
@@ -165,7 +170,7 @@ The title is displayed together with each node and its best suited property valu
 If you're standing on a node which has two +KNOWS+ relationships to other nodes it'd be difficult to know which friend is which.
 The title feature addresses this by reading a list of property keys and grabbing the first existing property value of those keys and displays it as a title for the node.
 So you may specify a list (with or without regular expressions), f.ex: +name,title.\*,caption+ and the title for each node will be the property value of the first existing key in that list.
-The list is defined by the client (you) using the +TITLE_KEYS+ <<shell-env-vars,environment variable>> and the default being +.\*name.\*,.\*title.*+
+The list is defined by the client (you) using the +TITLE_KEYS+ environment variable (see <<shell-env-vars>>) and the default being +.\*name.\*,.\*title.*+
 
 [[shell-commands]]
 == How to use (individual commands) ==
@@ -177,7 +182,10 @@ Use +man <command>+ to get more info about a particular command. Some notes:
 
 [[comments]]
 === Comments ===
-Single line comments, which will be ignored, can be made by using the prefix "//". Example:
+
+Single line comments, which will be ignored, can be made by using the prefix `//`. Example:
+
+[source]
 ----
 // This is a comment
 ----
@@ -211,20 +219,24 @@ If you already have two nodes which you'd like to draw a relationship between (w
 === Setting, renaming and removing properties ===
 Property operations are done with the +set+, +mv+ and +rm+ commands.
 These commands operates on the current node/relationship.
-* +set <key> <value>+ with optionally the +-t+ option (for value type) sets a property.
+
+Use +set <key> <value>+, optionally with the +-t+ option (for value type), to set a property.
 Supports every type of value that Neo4j supports. Examples of a property of type +int+:
+
 [source,plain]
 ----
 $ set -t int age 29
 ----
 
 And an example of setting a +double[]+ property:
+
 [source,plain]
 ----
 $ set -t double[] my_values [1.4,12.2,13]
 ----
 
 Example of setting a +String+ property containing a JSON string:
+
 [source,plain]
 ----
 mkrel -c -d i -t DOMAIN_OF --np "{'app':'foobar'}"
@@ -269,8 +281,9 @@ Which means traverse depth first for relationships with type +KNOWS+ disregardin
 See <<shell-options-enum>> for the traversal order option. Even relationship types/directions are supplied using the same format as filters.
 
 === Query with Cypher ===
-You can use Cypher to query the graph. For that, use the +start+ command. You can also use +create+ statements to create nodes and relationships and
-use the +cypher VERSION+ prefix to select a certain cypher version.
+
+You can use Cypher to query the graph. For that, use the +match+ or +start+ command.
+You can also use +create+ statements to create nodes and relationships and use the +cypher VERSION+ prefix to select a certain cypher version.
 
 [TIP]
 Cypher queries need to be terminated by a semicolon `;`.
@@ -286,17 +299,51 @@ return the nodes connected to the current node.
 * +START n=node(\{me}) CREATE friend=\{props}, (me)-[r:KNOWS]->(friend);+ will
 create the friend and the relationship according to the variables available.
 
-=== Indexing ===
-It's possible to query and manipulate indexes via the index command.
-Example: +index -i persons name+ (will index the name for the current node or relationship in the "persons" index).
+[[shell-listing-indexes-and-constraints]]
+=== Listing Indexes and Constraints ===
 
-* +-g+ will do exact lookup in the index and display hits. You can supply +-c+ with a command to be executed for each hit. 
-* +-q+ will ask the index a query and display hits. You can supply +-c+ with a command to be executed for each hit.
+The +schema+ command allows to list all existing indexes and constraints together with their current status.
+
+[NOTE]
+This command does not list legacy indexes. For working with legacy indexes, please see <<shell-legacy-indexing>>.
+
+
+List all indexes and constraints:
+
+[source]
+----
+schema
+----
+
+List indexes or constraints on +:Person+ nodes for the property +name+:
+
+[source]
+----
+schema -l :Person -p name
+----
+
+The +schema+ command supports the following parameters:
+
+* +-l :Label+ only list indexes or constraints for the given label +:Label+
+* +-p propertyKey+ only list indexes or constraints for the given property key +propertyKey+
+* +-v+ if an index is in the +FAILED+ state, print a verbose error cause if available
+
+Indexes and constraints can be created or removed using Cypher or the Java Core API. They are updated automatically
+whenever the graph is changed.  See <<graphdb-neo4j-schema>> for more information.
+
+[[shell-legacy-indexing]]
+=== Legacy Indexing ===
+It's possible to query and manipulate legacy indexes via the index command.
+
+Example: +index -i persons name+ (will index the name for the current node or relationship in the "persons" legacy index).
+
+* +-g+ will do exact lookup in the legacy index and display hits. You can supply +-c+ with a command to be executed for each hit.
+* +-q+ will ask the legacy index a query and display hits. You can supply +-c+ with a command to be executed for each hit.
 * +--cd+ will change current location to the hit from the query. It's just a convenience for using the +-c+ option.
 * +--ls+ will do a listing of the contents for each hit. It's just a convenience for using the +-c+ option.
-* +-i+ will index a key-value pair in an index for the current node/relationship. If no value is given the property value for that key for the current node is used as value.
-* +-r+ will remove a key-value pair (if it exists) from an index for the current node/relationship. Key and value is optional.
-* +-t+ will set the index type to work with, for example `index -t Relationship --delete friends` will delete the +friends+ relationship index. 
+* +-i+ will index a key-value pair into a legacy index for the current node/relationship. If no value is given the property value for that key for the current node is used as value.
+* +-r+ will remove a key-value pair (if it exists) from a legacy index for the current node/relationship. Key and value are optional.
+* +-t+ will set the legacy index type to work with, for example `index -t Relationship --delete friends` will delete the +friends+ relationship index.
 
 === Transactions ===
 It is useful to be able to test changes, and then being able to commit or rollback said changes.
@@ -313,58 +360,21 @@ all open transactions.
 
 As a simple way of exporting a database or a subset of it, the +dump+ command converts the graph of a Cypher result or the whole database into a single Cypher +create+ statement.
 
-[TIP]
-Index export is not yet supported.
+[NOTE]
+Constraint export is not yet supported.
 
 Examples:
-* +dump + dumps the whole database as single cypher create statement
+
+* +dump+ dumps the whole database as single cypher create statement
 * +dump START n=node(\{self}) MATCH p=(n)-[r:KNOWS*]->(m) RETURN n,r,m;+ dumps the transitive friendship graph of the current node.
 * +neo4j-shell -path db1 -c dump START n=node:node_auto_index(name=\'Mattias\') MATCH p=(n)-[r:KNOWS]->(m) RETURN p; | neo4j-shell -path db2+
-imports the subgraph of the first database (db1) into the second (db2)
+  imports the subgraph of the first database (db1) into the second (db2)
 
 ==== Example Dump Scripts ====
+
 include::shell/simple-cypher-result-dump.asciidoc[]
 
 include::shell/database-dump.asciidoc[]
-
-////
-[[shell-extending]]
-== Extending the shell: Adding your own commands ==
-
-Of course the shell is extendable and has a generic core which has nothing to do with Neo4j... only some of the http://components.neo4j.org/neo4j-shell/{neo4j-version}/apidocs/org/neo4j/shell/App.html[commands] do.
-
-So you say you'd like to start a Neo4j http://api.neo4j.org/current/org/neo4j/graphdb/GraphDatabaseService.html[graph database], <<shell-enabling-remote,enable the remote shell>> and add your own apps to it so that your apps and the standard Neo4j apps co-exist side by side? Well, here's an example of how an app could look like:
-
-[source,java]
-----
-import org.neo4j.helpers.Service;
-import org.neo4j.shell.kernel.apps.GraphDatabaseApp;
-
-@Service.Implementation( App.class )
-public class LsRelTypes extends GraphDatabaseApp
-{
-    @Override
-    protected String exec( AppCommandParser parser, Session session, Output out )
-            throws ShellException, RemoteException
-    {
-        GraphDatabaseService graphDb = getServer().getDb();
-        out.println( "Types:" );
-        for ( RelationshipType type : graphDb.getRelationshipTypes() )
-        {
-            out.println( type.name() );
-        }
-        return null;
-    }
-}
-----
-
-And you could now use it in the shell by typing +lsreltypes+ (its name is based on the class name) if +getName+ method isn't overridden.
-
-If you'd like it to display some nice help information when using the +help+ (or +man+) app, override the +getDescription+ method for a general description and use +addValueType+ method to add descriptions about (and logic to) the options you can supply when using your app.
-
-Know that the apps reside server-side so if you have a running server and starts a remote client to it from another JVM you can't add your apps on the client.
-
-////
 
 [[shell-sample-session]]
 == An example shell session ==
@@ -377,25 +387,6 @@ include::shell/sample-session.asciidoc[]
 This example is creating a graph of the characters in the Matrix via the shell and then executing Cypher queries against it:
 
 include::shell/shell-matrix-example-graph.asciidoc[]
-
-////
-["dot", "shell-matrix.svg"]
-----
-root[label="root"]
-neo[label="Mr Andersson"]
-morpheus[label="Morpheus"]
-trinity[label="Trinity"]
-cypher[label="Cypher"]
-agent [label="Agent Smith"]
-architect[label="The Architect"]
-root->neo[label="ROOT"]
-neo -> morpheus[label="KNOWS\nage=3"]
-morpheus->trinity[label="KNOWS\nage=90"]
-morpheus->cypher[label="KNOWS"]
-agent -> cypher [dir="back" label="KNOWS"]
-agent -> architect[label="CODED_BY"]
-----
-////
 
 Neo4j is configured for autoindexing, in this case with the following in the Neo4j configuration file:
 

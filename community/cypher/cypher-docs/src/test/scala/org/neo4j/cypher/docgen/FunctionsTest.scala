@@ -27,7 +27,7 @@ import org.neo4j.visualization.graphviz.GraphStyle
 import org.neo4j.visualization.graphviz.AsciiDocSimpleStyle
 
 class FunctionsTest extends DocumentingTestBase {
-  def graphDescription = List(
+  override def graphDescription = List(
     "A:foo:bar KNOWS B",
     "A KNOWS C",
     "B KNOWS D",
@@ -233,9 +233,9 @@ class FunctionsTest extends DocumentingTestBase {
       syntax = "NODES( path )",
       arguments = List("path" -> "A path."),
       text = """Returns all nodes in a path.""",
-      queryText = """match p=(a)-->(b)-->(c) where a.name='Alice' and c.name='Eskil' return NODES(p)""",
+      queryText = """match p=(a)-->(b)-->(c) where a.name='Alice' and c.name='Eskil' return nodes(p)""",
       returns = """All the nodes in the path `p` are returned by the example query.""",
-      assertions = (p) => assert(List(node("A"), node("B"), node("E")) === p.columnAs[Seq[Node]]("NODES(p)").toList.head)
+      assertions = (p) => assert(List(node("A"), node("B"), node("E")) === p.columnAs[Seq[Node]]("nodes(p)").toList.head)
     )
   }
 
@@ -245,9 +245,9 @@ class FunctionsTest extends DocumentingTestBase {
       syntax = "RELATIONSHIPS( path )",
       arguments = List("path" -> "A path."),
       text = """Returns all relationships in a path.""",
-      queryText = """match p=(a)-->(b)-->(c) where a.name='Alice' and c.name='Eskil' return RELATIONSHIPS(p)""",
+      queryText = """match p=(a)-->(b)-->(c) where a.name='Alice' and c.name='Eskil' return relationships(p)""",
       returns = """All the relationships in the path `p` are returned.""",
-      assertions = (p) => assert(2 === p.columnAs[Seq[Node]]("RELATIONSHIPS(p)").toSeq.head.length)
+      assertions = (p) => assert(2 === p.columnAs[Seq[Node]]("relationships(p)").toSeq.head.length)
     )
   }
 
@@ -257,9 +257,9 @@ class FunctionsTest extends DocumentingTestBase {
       syntax = "ID( property-container )",
       arguments = List("property-container" -> "A node or a relationship."),
       text = """Returns the id of the relationship or node.""",
-      queryText = """match (a) return ID(a)""",
+      queryText = """match (a) return id(a)""",
       returns = """This returns the node id for three nodes.""",
-      assertions = (p) => assert(Seq(0,1,2,3,4) === p.columnAs[Int]("ID(a)").toSeq)
+      assertions = (p) => assert(Seq(0,1,2,3,4) === p.columnAs[Int]("id(a)").toSeq)
     )
   }
 
@@ -267,11 +267,12 @@ class FunctionsTest extends DocumentingTestBase {
     testThis(
       title = "COALESCE",
       syntax = "COALESCE( expression [, expression]* )",
-      arguments = List("expression" -> "The expression that might return null."),
-      text = """Returns the first non-+null+ value in the list of expressions passed to it.""",
-      queryText = """match (a) where a.name='Alice' return coalesce(a.hairColour, a.eyes)""",
+      arguments = List("expression" -> "The expression that might return NULL."),
+      text = """Returns the first non-++NULL++ value in the list of expressions passed to it.
+In case all arguments are +NULL+, +NULL+ will be returned.""",
+      queryText = """match (a) where a.name='Alice' return coalesce(a.hairColor, a.eyes)""",
       returns = """""",
-      assertions = (p) => assert(Seq("brown") === p.columnAs[String]("coalesce(a.hairColour, a.eyes)").toSeq)
+      assertions = (p) => assert(Seq("brown") === p.columnAs[String]("coalesce(a.hairColor, a.eyes)").toSeq)
     )
   }
 
@@ -402,7 +403,7 @@ class FunctionsTest extends DocumentingTestBase {
       arguments = List("expression" -> "A numeric expression."),
       text = "`EXP` returns the value e raised to the power of the expression.",
       queryText = """return exp(2)""",
-      returns = "The exp of 2 is returned: e^2.",
+      returns = "The exp of 2 is returned: e^2^.",
       assertions = (p) => assertEquals(7.38905609893065, p.toList.head("exp(2)").asInstanceOf[Double], 0.000001)
     )
   }

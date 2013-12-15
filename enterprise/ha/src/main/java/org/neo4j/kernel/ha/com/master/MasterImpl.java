@@ -41,6 +41,7 @@ import org.neo4j.com.ResourceReleaser;
 import org.neo4j.com.Response;
 import org.neo4j.com.ServerUtil;
 import org.neo4j.com.StoreWriter;
+import org.neo4j.com.TransactionNotPresentOnMasterException;
 import org.neo4j.com.TransactionStream;
 import org.neo4j.com.TxExtractor;
 import org.neo4j.graphdb.Node;
@@ -67,9 +68,12 @@ import org.neo4j.kernel.impl.locking.IndexEntryLock;
 import org.neo4j.kernel.impl.nioneo.store.StoreId;
 import org.neo4j.kernel.impl.transaction.IllegalResourceException;
 import org.neo4j.kernel.impl.transaction.LockManager;
+import org.neo4j.kernel.impl.transaction.TransactionAlreadyActiveException;
 import org.neo4j.kernel.impl.util.StringLogger;
 import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 import org.neo4j.kernel.logging.Logging;
+
+import static java.lang.String.format;
 
 import static org.neo4j.kernel.impl.util.IoPrimitiveUtils.safeCastLongToInt;
 
@@ -80,6 +84,10 @@ import static org.neo4j.kernel.impl.util.IoPrimitiveUtils.safeCastLongToInt;
  */
 public class MasterImpl extends LifecycleAdapter implements Master
 {
+    public interface Monitor
+    {
+        void initializeTx( RequestContext context );
+    }
 
     public static final int TX_TIMEOUT_ADDITION = 5 * 1000;
 
@@ -128,19 +136,21 @@ public class MasterImpl extends LifecycleAdapter implements Master
 
     public static final int UNFINISHED_TRANSACTION_CLEANUP_DELAY = 1;
 
-    private SPI spi;
+    private final SPI spi;
     private final StringLogger msgLog;
     private final Config config;
+    private final Monitor monitor;
 
     private Map<RequestContext, MasterTransaction> transactions = new ConcurrentHashMap<>();
     private ScheduledExecutorService unfinishedTransactionsExecutor;
     private long unfinishedTransactionThresholdMillis;
 
-    public MasterImpl( SPI spi, Logging logging, Config config )
+    public MasterImpl( SPI spi, Monitor monitor, Logging logging, Config config )
     {
         this.spi = spi;
         this.msgLog = logging.getMessagesLog( getClass() );
         this.config = config;
+        this.monitor = monitor;
     }
 
     @Override
@@ -163,6 +173,8 @@ public class MasterImpl extends LifecycleAdapter implements Master
     @Override
     public Response<Void> initializeTx( RequestContext context )
     {
+        monitor.initializeTx( context );
+
         if ( !spi.isAccessible() )
         {
             throw new TransactionFailureException( "Database is currently not available" );
@@ -226,20 +238,21 @@ public class MasterImpl extends LifecycleAdapter implements Master
     private Transaction getTx( RequestContext txId )
     {
         MasterTransaction result = transactions.get( txId );
-        if ( result != null )
+        if ( result == null )
         {
-            // set time stamp to zero so that we don't even try to finish it off
-            // if getting old. This is because if the tx is active and old then
-            // it means it's waiting for a lock and we cannot do anything about it.
-            result.resetTime();
-            return result.transaction;
+            throw new TransactionNotPresentOnMasterException( txId );
         }
-        return null;
+        
+        // set time stamp to zero so that we don't even try to finish it off
+        // if getting old. This is because if the tx is active and old then
+        // it means it's waiting for a lock and we cannot do anything about it.
+        result.resetTime();
+        return result.transaction;
     }
 
     private void resumeTransaction( RequestContext txId )
     {
-        spi.resumeTransaction(getTx(txId));
+        spi.resumeTransaction( getTx( txId ) );
     }
 
     private void suspendTransaction( RequestContext context )
@@ -257,12 +270,17 @@ public class MasterImpl extends LifecycleAdapter implements Master
             // a request and can now again start to be monitored, so that it can be
             // rolled back if it's getting old.
             tx.updateTime();
-
-            spi.suspendTransaction();
         }
-        catch ( Exception e )
+        finally
         {
-            throw Exceptions.launderedException( e );
+            try
+            {
+                spi.suspendTransaction();
+            }
+            catch ( SystemException e )
+            {
+                throw Exceptions.launderedException( e );
+            }
         }
     }
 
@@ -382,7 +400,11 @@ public class MasterImpl extends LifecycleAdapter implements Master
         {
             resumeTransaction( context );
         }
-        catch ( Exception e )
+        catch ( TransactionNotPresentOnMasterException e )
+        {   // Let these ones through straight away
+            throw e;
+        }
+        catch ( RuntimeException e )
         {
             MasterTransaction masterTransaction = transactions.get( context );
             // It is possible that the transaction is not there anymore, or never was. No need for an NPE to be thrown.
@@ -390,11 +412,7 @@ public class MasterImpl extends LifecycleAdapter implements Master
             {
                 masterTransaction.markAsFinishAsap();
             }
-            if ( e instanceof RuntimeException )
-            {
-                throw (RuntimeException) e;
-            }
-            throw new RuntimeException( e );
+            throw e;
         }
 
         finishTransaction0( context, success );
@@ -402,7 +420,6 @@ public class MasterImpl extends LifecycleAdapter implements Master
         return packResponse( context, null );
     }
 
-    @SuppressWarnings("deprecation")
     @Override
     public Response<Integer> createRelationshipType( RequestContext context, String name )
     {
@@ -512,7 +529,6 @@ public class MasterImpl extends LifecycleAdapter implements Master
                 safeCastLongToInt( labelId ), safeCastLongToInt( propertyKeyId ), propertyValue ) );
     }
 
-    @SuppressWarnings("deprecation")
     @Override
     public Response<Void> pushTransaction( RequestContext context, String resourceName, long tx )
     {
@@ -600,24 +616,22 @@ public class MasterImpl extends LifecycleAdapter implements Master
                             || entry.getValue().finishAsap() )
                     {
                         long displayableTime = (time == 0 ? 0 : (System.currentTimeMillis() - time));
-                        msgLog.logMessage( "Found old tx " + entry.getKey() + ", " +
-                                "" + entry.getValue().transaction + ", " + displayableTime );
+                        String oldTxDescription = format( "old tx %s: %s at age %s ms",
+                                entry.getKey(), entry.getValue().transaction, displayableTime );
                         try
                         {
                             resumeTransaction( entry.getKey() );
                             finishTransaction0( entry.getKey(), false );
-                            msgLog.logMessage( "Rolled back old tx " + entry.getKey() + ", " +
-                                    "" + entry.getValue().transaction + ", " + displayableTime );
+                            msgLog.info( "Rolled back " + oldTxDescription );
                         }
-                        catch ( IllegalStateException e )
+                        catch ( TransactionAlreadyActiveException e )
                         {
-                            // Expected for waiting transactions
+                            // Expected for transactions awaiting locks, just leave them be
                         }
                         catch ( Throwable t )
                         {
                             // Not really expected
-                            msgLog.logMessage( "Unable to roll back old tx " + entry.getKey() + ", " +
-                                    "" + entry.getValue().transaction + ", " + displayableTime, t );
+                            msgLog.warn( "Unable to roll back " + oldTxDescription, t );
                         }
                     }
                 }
@@ -625,7 +639,7 @@ public class MasterImpl extends LifecycleAdapter implements Master
             catch ( Throwable t )
             {
                 // The show must go on
-                msgLog.logMessage( "Exception in MasterImpl", t );
+                msgLog.warn( "Exception running " + getClass().getName() + ", although will continue...", t );
             }
         }
     }

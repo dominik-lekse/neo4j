@@ -28,6 +28,7 @@ import java.util.concurrent.Future;
 
 import org.neo4j.helpers.collection.Visitor;
 import org.neo4j.kernel.api.exceptions.index.IndexPopulationFailedKernelException;
+import org.neo4j.kernel.api.index.IndexDescriptor;
 import org.neo4j.kernel.api.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.index.IndexPopulator;
 import org.neo4j.kernel.api.index.IndexUpdater;
@@ -253,7 +254,7 @@ public class IndexPopulationJob implements Runnable
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + "[populator:" + populator + ", descriptor:" + descriptor + "]";
+        return getClass().getSimpleName() + "[populator:" + populator + ", descriptor:" + indexUserDescription + "]";
     }
 
     public void awaitCompletion() throws InterruptedException

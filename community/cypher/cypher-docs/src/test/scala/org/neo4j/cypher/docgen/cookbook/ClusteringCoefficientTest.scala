@@ -30,13 +30,10 @@ class ClusteringCoefficientTest extends DocumentingTestBase {
   override protected def getGraphvizStyle: GraphStyle = 
     AsciiDocSimpleStyle.withAutomaticRelationshipTypeColors()
 
-  def graphDescription = List()
-
   def section = "cookbook"
   override val noTitle = true;
-
-  @Test def calculatingClusteringCoefficient() {
-    executeQuery("""
+  
+  override val setupQueries = List("""
 create 
 (_1 {name: "startnode"}),
 (_2),
@@ -51,7 +48,9 @@ _1-[:KNOWS]->_4,
 _1-[:KNOWS]->_5,
 _2-[:KNOWS]->_6,
 _2-[:KNOWS]->_7,
-_3-[:KNOWS]->_4""");
+_3-[:KNOWS]->_4""")
+
+  @Test def calculatingClusteringCoefficient() {
     testQuery(
       title = "Calculating the Clustering Coefficient of a friend network",
       text = """In this example, adapted from 
@@ -67,11 +66,12 @@ Therefore the clustering coefficient of node 1 is `1/6`.
         
 `n` and `r` are quite simple to retrieve via the following query:""",
               queryText =
-      		"MATCH (a)--(b)  " +
-      		"WITH a, count(distinct b) as n " +
-      		"MATCH (a)--()-[r]-()--(a) " +
-            "WHERE a.name = \"startnode\" " +
-      		"RETURN n, count(distinct r) as r",
+      		"""
+MATCH (a {name: "startnode"})--(b)
+WITH a, count(distinct b) as n
+MATCH (a)--()-[r]-()--(a)
+RETURN n, count(distinct r) as r
+""",
       returns = "This returns `n` and `r` for the above calculations.",
       assertions = (p) => assertEquals(List(
         Map("n" -> 4, "r" -> 1)), p.toList))

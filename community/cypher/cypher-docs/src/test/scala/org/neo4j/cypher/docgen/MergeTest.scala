@@ -32,7 +32,7 @@ class MergeTest extends DocumentingTestBase with StatisticsChecker {
 
   def section = "Merge"
 
-  def graphDescription = List(
+  override def graphDescription = List(
     "Charlie:Person ACTED_IN WallStreet:Movie",
     "Martin:Person ACTED_IN WallStreet:Movie",
     "Michael:Person ACTED_IN WallStreet:Movie",
@@ -52,10 +52,9 @@ class MergeTest extends DocumentingTestBase with StatisticsChecker {
     "TheAmericanPresident" -> Map("title" -> "The American President")
   )
 
-  @Before def setup_constraint() {
-    RichGraph(db).inTx( db.schema().constraintFor(DynamicLabel.label("Person")).assertPropertyIsUnique("name").create())
-    RichGraph(db).inTx( db.schema().constraintFor(DynamicLabel.label("Person")).assertPropertyIsUnique("role").create())
-  }
+  override val setupContraintQueries = List(
+    "CREATE CONSTRAINT ON (n:Person) ASSERT n.name IS UNIQUE",
+    "CREATE CONSTRAINT ON (n:Person) ASSERT n.role IS UNIQUE")
 
   @Test def merge_single_node_with_label() {
     testQuery(
@@ -172,7 +171,8 @@ return keanu""",
     prepareAndTestQuery(
       title = "Using map parameters with MERGE",
       text = """+MERGE+ does not support map parameters like for example +CREATE+ does.
-To use map parameters with +MERGE+, it is necessary to explicitly use the expected properties, like in the following example.""",
+To use map parameters with +MERGE+, it is necessary to explicitly use the expected properties, like in the following example.
+For more information on parameters, see <<cypher-parameters>>.""",
       prepare = setParameters(Map("param" -> Map("name" -> "Keanu Reeves", "role" -> "Neo"))),
       queryText = "merge (oliver:Person {name:{param}.name, role:{param}.role}) return oliver",
       returns = "",
@@ -188,7 +188,9 @@ To use map parameters with +MERGE+, it is necessary to explicitly use the expect
         """match (charlie:Person {name:'Charlie Sheen'}), (wallStreet:Movie {title:'Wall Street'})
 merge (charlie)-[r:ACTED_IN]->(wallStreet)
 return r""",
-      returns = "Charlie Sheen had already been marked as acting on Wall Street, so the existing relationship is found and returned",
+      returns = "Charlie Sheen had already been marked as acting on Wall Street, so the existing relationship is found " +
+        "and returned. Note that in order to match or create a relationship when using +MERGE+, at least one bound node " +
+        "must be specified, which is done via the +MATCH+ clause in the above example.",
       assertions = (p) => assertStats(p, relationshipsCreated = 0)
     )
   }
