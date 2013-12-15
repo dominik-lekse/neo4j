@@ -4,13 +4,14 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>2.0.0-RC1</version>
+    <version>2.0.0</version>
     <relativePath>../..</relativePath>
   </parent>
 
   <groupId>org.neo4j</groupId>
   <artifactId>neo4j-advanced</artifactId>
-  <version>2.0.0-RC1</version>
+  <version>2.0.0</version>
+
   <name>Neo4j Advanced</name>
   <packaging>jar</packaging>
   <url>http://components.neo4j.org/${project.artifactId}/${project.version}</url>
@@ -117,7 +118,7 @@
                   <filtering>false</filtering>
                 </resource>
                 <resource>
-                  <directory>${project.build.directory}/../../../community/cypher/src/main/java/</directory>
+                  <directory>${project.build.directory}/../../../community/cypher/cypher/src/main/java/</directory>
                   <filtering>false</filtering>
                 </resource>
               </resources>

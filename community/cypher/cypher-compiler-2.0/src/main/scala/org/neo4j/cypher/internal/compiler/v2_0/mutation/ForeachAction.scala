@@ -51,12 +51,11 @@ case class ForeachAction(collection: Expression, id: String, actions: Seq[Update
 
   def identifiers = Nil
 
-  def throwIfSymbolsMissing(symbols: SymbolTable) {
+  def addInnerIdentifier(symbols: SymbolTable): SymbolTable = {
     val t = collection.evaluateType(CollectionType(AnyType()), symbols).iteratedType
 
     val innerSymbols: SymbolTable = symbols.add(id, t)
-
-    actions.foreach(_.throwIfSymbolsMissing(innerSymbols))
+    innerSymbols
   }
 
   def symbolTableDependencies = {

@@ -20,6 +20,7 @@
 package org.neo4j.kernel.ha.lock;
 
 import java.util.List;
+
 import javax.transaction.Transaction;
 
 import org.neo4j.com.Response;
@@ -43,33 +44,35 @@ import org.neo4j.kernel.impl.transaction.RemoteTxHook;
 import org.neo4j.kernel.info.LockInfo;
 import org.neo4j.kernel.logging.Logging;
 
+import static org.neo4j.kernel.impl.transaction.LockType.READ;
+import static org.neo4j.kernel.impl.transaction.LockType.WRITE;
+
 public class SlaveLockManager implements LockManager
 {
-    private final AbstractTransactionManager txManager;
-    private final RemoteTxHook txHook;
-    private final AvailabilityGuard availabilityGuard;
-    private final Configuration config;
     private final RequestContextFactory requestContextFactory;
     private final LockManagerImpl local;
     private final Master master;
     private final HaXaDataSourceManager xaDsm;
+    private final AbstractTransactionManager txManager;
+    private final RemoteTxHook txHook;
+    private final AvailabilityGuard availabilityGuard;
+    private final Configuration config;
 
     public static interface Configuration
     {
         long getAvailabilityTimeout();
     }
 
-    public SlaveLockManager( AbstractTransactionManager txManager, RemoteTxHook txHook,
-                             AvailabilityGuard availabilityGuard, Configuration config,
-                             RagManager ragManager, RequestContextFactory requestContextFactory, Master master,
-                             HaXaDataSourceManager xaDsm )
+    public SlaveLockManager( RagManager ragManager, RequestContextFactory requestContextFactory, Master master,
+            HaXaDataSourceManager xaDsm, AbstractTransactionManager txManager, RemoteTxHook txHook,
+            AvailabilityGuard availabilityGuard, Configuration config )
     {
+        this.requestContextFactory = requestContextFactory;
+        this.xaDsm = xaDsm;
         this.txManager = txManager;
         this.txHook = txHook;
         this.availabilityGuard = availabilityGuard;
         this.config = config;
-        this.requestContextFactory = requestContextFactory;
-        this.xaDsm = xaDsm;
         this.local = new LockManagerImpl( ragManager );
         this.master = master;
     }
@@ -85,7 +88,10 @@ public class SlaveLockManager implements LockManager
     {
         if ( getReadLockOnMaster( resource ) )
         {
-            local.getReadLock( resource, tx );
+            if ( !local.tryReadLock( resource, tx ) )
+            {
+                throw new LocalDeadlockDetectedException( local, tx, resource, READ );
+            }
         }
     }
 
@@ -146,10 +152,34 @@ public class SlaveLockManager implements LockManager
     {
         if ( getWriteLockOnMaster( resource ) )
         {
-            local.getWriteLock( resource, tx );
+            if ( !local.tryWriteLock( resource, tx ) )
+            {
+                throw new LocalDeadlockDetectedException( local, tx, resource, WRITE );
+            }
         }
     }
+    
+    @Override
+    public boolean tryReadLock( Object resource, Transaction tx ) throws LockNotFoundException,
+            IllegalResourceException
+    {
+        throw newUnsupportedDirectTryLockUsageException();
+    }
 
+    @Override
+    public boolean tryWriteLock( Object resource, Transaction tx ) throws LockNotFoundException,
+            IllegalResourceException
+    {
+        throw newUnsupportedDirectTryLockUsageException();
+    }
+
+    private UnsupportedOperationException newUnsupportedDirectTryLockUsageException()
+    {
+        return new UnsupportedOperationException( "At the time of adding \"try lock\" semantics there was no usage of " +
+                getClass().getSimpleName() + " calling it directly. It was designed to be called on a local " +
+                LockManager.class.getSimpleName() + " delegated to from within the waiting version" );
+    }
+    
     private boolean getWriteLockOnMaster( Object resource )
     {
         Response<LockResult> response;
@@ -238,17 +268,13 @@ public class SlaveLockManager implements LockManager
 
     private void makeSureTxHasBeenInitialized()
     {
+        if ( !availabilityGuard.isAvailable( config.getAvailabilityTimeout() ) )
+        {
+            // TODO Specific exception instead?
+            throw new RuntimeException( "Timed out waiting for database to allow operations to proceed. "
+                    + availabilityGuard.describeWhoIsBlocking() );
+        }
 
-//        int eventIdentifier = txManager.getEventIdentifier();
-//        if ( !txManager.getTransactionState().hasLocks() )
-//        {
-//            if ( !availabilityGuard.isAvailable( config.getAvailabilityTimeout() ) )
-//            {
-//                // TODO Specific exception instead?
-//                throw new RuntimeException( "Timed out waiting for database to switch state" );
-//            }
-//
-//            txHook.initializeTransaction( eventIdentifier );
-//        }
+        txHook.remotelyInitializeTransaction( txManager.getEventIdentifier(), txManager.getTransactionState() );
     }
 }

@@ -26,6 +26,7 @@ import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 
 import org.junit.Test;
+
 import org.neo4j.com.RequestContext;
 import org.neo4j.graphdb.TransactionFailureException;
 import org.neo4j.kernel.configuration.Config;
@@ -36,8 +37,9 @@ import org.neo4j.kernel.logging.Logging;
 import static junit.framework.Assert.fail;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MasterImplTest
 {
@@ -53,7 +55,7 @@ public class MasterImplTest
 
         when( spi.isAccessible() ).thenReturn( false );
 
-        MasterImpl instance = new MasterImpl( spi, logging, config );
+        MasterImpl instance = new MasterImpl( spi, mock( MasterImpl.Monitor.class ), logging, config );
         instance.start();
 
         // When
@@ -81,7 +83,7 @@ public class MasterImplTest
         when( spi.isAccessible() ).thenReturn( true );
         when( spi.beginTx() ).thenReturn( mock( Transaction.class ) );
 
-        MasterImpl instance = new MasterImpl( spi, logging, config );
+        MasterImpl instance = new MasterImpl( spi, mock( MasterImpl.Monitor.class ), logging, config );
         instance.start();
 
         // When
@@ -106,7 +108,8 @@ public class MasterImplTest
         when( spi.isAccessible() ).thenReturn( true );
         when( spi.beginTx() ).thenThrow( new SystemException("Nope") );
 
-        MasterImpl instance = new MasterImpl( spi, new DevNullLoggingService(), config );
+        MasterImpl instance = new MasterImpl( spi, mock( MasterImpl.Monitor.class ),
+                new DevNullLoggingService(), config );
         instance.start();
 
         // When
@@ -121,6 +124,5 @@ public class MasterImplTest
             assertThat(e.getCause(), instanceOf( SystemException.class ));
             assertThat(e.getCause().getMessage(), equalTo( "Nope" ));
         }
-
     }
 }

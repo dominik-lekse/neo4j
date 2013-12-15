@@ -20,16 +20,16 @@
 package org.neo4j.cypher.internal.compiler.v2_0.executionplan.builders
 
 import org.neo4j.cypher.internal.compiler.v2_0._
-import commands.{AnyIndex, NodeByLabel, SchemaIndex}
-import commands.expressions.Literal
+import org.neo4j.cypher.internal.compiler.v2_0.commands.{AnyIndex, NodeByLabel, SchemaIndex}
+import org.neo4j.cypher.internal.compiler.v2_0.commands.expressions.Literal
 import pipes.QueryStateHelper
 import org.neo4j.cypher.internal.compiler.v2_0.spi.{QueryContext, PlanContext}
 import org.neo4j.cypher.IndexHintException
-import org.neo4j.kernel.impl.api.index.IndexDescriptor
 import org.scalatest.mock.MockitoSugar
 import org.junit.{Before, Test}
 import org.mockito.Mockito._
 import org.scalatest.Assertions
+import org.neo4j.kernel.api.index.IndexDescriptor
 
 class EntityProducerFactoryTest extends MockitoSugar with Assertions {
   var planContext: PlanContext = null

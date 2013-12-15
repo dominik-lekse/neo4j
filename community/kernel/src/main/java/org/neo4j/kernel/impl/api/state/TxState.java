@@ -25,13 +25,13 @@ import java.util.Set;
 import org.neo4j.kernel.api.constraints.UniquenessConstraint;
 import org.neo4j.kernel.api.properties.DefinedProperty;
 import org.neo4j.kernel.api.properties.Property;
-import org.neo4j.kernel.impl.api.DiffSets;
-import org.neo4j.kernel.impl.api.index.IndexDescriptor;
+import org.neo4j.kernel.impl.util.DiffSets;
+import org.neo4j.kernel.api.index.IndexDescriptor;
 
 /**
  * Kernel transaction state, please see {@link TxStateImpl} for details.
  *
- * The naming of methods in this class roughly follows the naming of {@link org.neo4j.kernel.api.StatementOperations}
+ * The naming of methods in this class roughly follows the naming of {@link org.neo4j.kernel.api.Statement}
  * with one exception: All transaction state mutators must include the particle "Do" in their name, e.g.
  * nodeDoAdd. This helps deciding where to set "hasChanges" in the main implementation class {@link TxStateImpl}.
  */
@@ -216,4 +216,8 @@ public interface TxState
     public abstract void constraintDoDrop( UniquenessConstraint constraint );
 
     public abstract boolean constraintDoUnRemove( UniquenessConstraint constraint );
+
+    boolean constraintIndexDoUnRemove( IndexDescriptor index );
+
+    Long indexCreatedForConstraint( UniquenessConstraint constraint );
 }

@@ -33,6 +33,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.listeners.InvocationListener;
 import org.mockito.listeners.MethodInvocationReport;
 import org.mockito.stubbing.Answer;
+
 import org.neo4j.kernel.impl.core.TransactionState;
 import org.neo4j.kernel.impl.nioneo.store.FileSystemAbstraction;
 import org.neo4j.kernel.impl.transaction.TransactionStateFactory;
@@ -46,8 +47,15 @@ import org.neo4j.test.FailureOutput;
 import org.neo4j.test.TargetDirectory;
 
 import static org.hamcrest.number.OrderingComparison.lessThan;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
+
+import static org.neo4j.kernel.impl.transaction.XidImpl.DEFAULT_SEED;
 import static org.neo4j.kernel.impl.transaction.XidImpl.getNewGlobalId;
 import static org.neo4j.kernel.impl.transaction.xaframework.ForceMode.forced;
 import static org.neo4j.kernel.impl.transaction.xaframework.InjectedTransactionValidator.ALLOW_ALL;
@@ -110,7 +118,7 @@ public class XaLogicalLogTest
         // -- set the log up with 10 transactions (with no commands, just start and commit)
         for ( int txId = 1; txId <= 10; txId++ )
         {
-            int identifier = xaLogicalLog.start( new XidImpl( getNewGlobalId(), RESOURCE_ID ), -1, 0, 1337 );
+            int identifier = xaLogicalLog.start( new XidImpl( getNewGlobalId( DEFAULT_SEED, 0 ), RESOURCE_ID ), -1, 0, 1337 );
             xaLogicalLog.writeStartEntry( identifier );
             xaLogicalLog.commitOnePhase( identifier, txId, ForceMode.forced );
             xaLogicalLog.done( identifier );
@@ -157,7 +165,7 @@ public class XaLogicalLogTest
 
     private static class FixedSizeXaCommand extends XaCommand
     {
-        private byte[] data;
+        private final byte[] data;
 
         FixedSizeXaCommand( int payloadSize )
         {

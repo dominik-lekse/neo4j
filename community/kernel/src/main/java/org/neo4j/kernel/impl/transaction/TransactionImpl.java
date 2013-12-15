@@ -56,6 +56,8 @@ class TransactionImpl implements Transaction
     private final LinkedList<ResourceElement> resourceList = new LinkedList<>();
 
     private int status = Status.STATUS_ACTIVE;
+    // volatile since at least toString is unsynchronized and reads it,
+    // but all logical operations are guarded with synchronization
     private volatile boolean active = true;
     private List<Synchronization> syncHooks = new ArrayList<>();
 
@@ -67,17 +69,14 @@ class TransactionImpl implements Transaction
     private Thread owner;
 
     private final TransactionState state;
-    
-    // guarded by synchronization in suspend/resume
-    private boolean remotelyInitialized;
 
-    TransactionImpl( TxManager txManager, ForceMode forceMode, TransactionStateFactory stateFactory,
+    TransactionImpl( byte[] xidGlobalId, TxManager txManager, ForceMode forceMode, TransactionStateFactory stateFactory,
                      StringLogger logger )
     {
         this.txManager = txManager;
         this.logger = logger;
         this.state = stateFactory.create( this );
-        globalId = XidImpl.getNewGlobalId();
+        globalId = xidGlobalId;
         eventIdentifier = txManager.getNextEventIdentifier();
         this.forceMode = forceMode;
         owner = Thread.currentThread();
@@ -102,13 +101,17 @@ class TransactionImpl implements Transaction
     {
         return state;
     }
+    
+    private String getStatusAsString()
+    {
+        return txManager.getTxStatusAsString( status ) + (active ? "" : " (suspended)");
+    }
 
     @Override
     public String toString()
     {
-
         return String.format( "Transaction(%d, owner:\"%s\")[%s,Resources=%d]",
-                eventIdentifier, owner.getName(), txManager.getTxStatusAsString( status ), resourceList.size() );
+                eventIdentifier, owner.getName(), getStatusAsString(), resourceList.size() );
     }
 
     @Override
@@ -167,8 +170,7 @@ class TransactionImpl implements Transaction
                         throw Exceptions.withCause( new SystemException( "TM encountered a problem, "
                                 + " error writing transaction log" ), e );
                     }
-                    // TODO ties HA to our TxManager
-                    lazyRemoteInitialize();
+
                     return true;
                 }
                 Xid sameRmXid = null;
@@ -237,15 +239,6 @@ class TransactionImpl implements Transaction
         }
         throw new IllegalStateException( "Tx status is: "
                 + txManager.getTxStatusAsString( status ) );
-    }
-
-    private void lazyRemoteInitialize()
-    {
-        if ( !remotelyInitialized )
-        {
-            getState().getTxHook().remotelyInitializeTransaction( eventIdentifier );
-            remotelyInitialized = true;
-        }
     }
 
     private void addResourceToList( Xid xid, XAResource xaRes )
@@ -696,10 +689,9 @@ class TransactionImpl implements Transaction
 
     public void finish( boolean successful )
     {
-        if ( remotelyInitialized )
+        if ( state.isRemotelyInitialized() )
         {
             getState().getTxHook().remotelyFinishTransaction( eventIdentifier, successful );
-            remotelyInitialized = false;
         }
     }
 }

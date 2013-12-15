@@ -37,8 +37,8 @@ import org.neo4j.helpers.Function;
 import org.neo4j.helpers.FunctionFromPrimitiveInt;
 import org.neo4j.helpers.FunctionFromPrimitiveLong;
 import org.neo4j.helpers.Predicate;
-import org.neo4j.kernel.impl.api.PrimitiveIntIterator;
-import org.neo4j.kernel.impl.api.PrimitiveLongIterator;
+import org.neo4j.kernel.impl.util.PrimitiveIntIterator;
+import org.neo4j.kernel.impl.util.PrimitiveLongIterator;
 
 import static java.util.Arrays.asList;
 
@@ -978,5 +978,24 @@ public final class Iterables
             }
         } );
         return list;
+    }
+
+    public static String join( String joinString, Iterable<?> iter )
+    {
+        return join( joinString, iter.iterator() );
+    }
+
+    public static String join( String joinString, Iterator<?> iter )
+    {
+        StringBuilder sb = new StringBuilder();
+        while(iter.hasNext())
+        {
+            sb.append( iter.next().toString() );
+            if(iter.hasNext())
+            {
+                sb.append( joinString );
+            }
+        }
+        return sb.toString();
     }
 }
