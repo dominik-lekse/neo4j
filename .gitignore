@@ -10,8 +10,6 @@ out
 .factorypath
 .cache
 *.iws
-*.ipr
-*.iml
 .idea
 .DS_Store
 .shell_history
